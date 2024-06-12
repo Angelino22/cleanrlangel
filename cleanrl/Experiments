@@ -16,6 +16,8 @@ from pettingzoo.atari import foozpong_v3
 import wandb
 import gym
 from pettingzoo.utils import wrappers
+from pettingzoo.utils import to_parallel, from_parallel
+
 
 @dataclass
 class Args:
@@ -97,17 +99,17 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
-        env = foozpong_v3.env()  # Assuming this is the correct initialization
-        env = wrappers.to_gym(env)  # Convert to gym if needed (use only if env is from PettingZoo)
+        env = foozpong_v3.env()
+        env = to_parallel(env)  # Only use if env is AEC and you need a parallel environment
+        env = from_parallel(env)  # Converts a parallel env to a gym env
         if capture_video:
-            # Save videos to './video' directory with every episode recorded
             env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.ClipRewardEnv(env)
         env = gym.wrappers.ResizeObservation(env, (84, 84))
         env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
-        env.action_space.seed(seed)
+        env.seed(seed)
         return env
     return thunk
 
