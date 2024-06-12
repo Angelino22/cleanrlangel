@@ -98,20 +98,38 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 
 
 def make_env(env_id, seed, capture_video, run_name):
+    """
+    A thunk that will create and configure the environment.
+    The function handles conversion from a PettingZoo environment to a Gym environment,
+    sets up video recording if requested, and applies several common wrappers.
+    """
     def thunk():
+        # Create the PettingZoo environment
         env = foozpong_v3.env()
-        env = to_parallel(env)  # Only use if env is AEC and you need a parallel environment
-        env = from_parallel(env)  # Converts a parallel env to a gym env
+
+        # Convert the AEC environment to a parallel environment and then to a Gym environment
+        # (check documentation to ensure these conversions are necessary/applicable)
+        env = to_parallel(env)
+        env = from_parallel(env)
+
+        # Set up video recording if requested
         if capture_video:
             env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
+
+        # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.ClipRewardEnv(env)
         env = gym.wrappers.ResizeObservation(env, (84, 84))
         env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
+
+        # Set the environment seed for reproducibility
         env.seed(seed)
+
         return env
+
     return thunk
+
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
