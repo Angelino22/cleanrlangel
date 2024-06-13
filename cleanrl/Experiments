@@ -106,30 +106,26 @@ def make_env(env_id, seed, capture_video, run_name):
     def thunk():
         # Create the PettingZoo environment
         env = foozpong_v3.env()
+        env.reset(seed=seed)
 
-        # Ensure the observation space is correctly set up
-        env.reset()
-        
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = ClipRewardEnv(env)
 
-        # Check if the observation space is Box type before applying ResizeObservation
-        if isinstance(env.observation_space(env.agents[0]), gym.spaces.Box):
-            env = gym.wrappers.ResizeObservation(env, (84, 84))
+        # Verify the observation space is of type Box before applying ResizeObservation
+        agent = env.possible_agents[0]
+        obs_space = env.observation_space(agent)
+        if isinstance(obs_space, gym.spaces.Box):
+            env = gym.wrappers.ResizeObservation(env, shape=(84, 84))
         else:
-            raise TypeError(f"Expected the observation space to be Box, actual type: {type(env.observation_space(env.agents[0]))}")
+            raise TypeError(f"Expected the observation space to be Box, actual type: {type(obs_space)}")
 
         env = gym.wrappers.GrayScaleObservation(env)
-        env = gym.wrappers.FrameStack(env, 4)
-
-        # Set the environment seed for reproducibility
-        env.seed(seed)
+        env = gym.wrappers.FrameStack(env, num_stack=4)
 
         return env
 
     return thunk
-
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
