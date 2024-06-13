@@ -76,8 +76,8 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 # Custom wrapper for preprocessing observations
 class CustomPreprocessingWrapper(gym.Wrapper):
-    def __init__(self, env):
-        super().__init__(env)
+    def _init_(self, env):
+        super()._init_(env)
         self.env = env
         self.observation_space = gym.spaces.Box(
             low=0, high=255, shape=(84, 84, 1), dtype=np.uint8
@@ -87,10 +87,14 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         print("Reset called on CustomPreprocessingWrapper")
         result = self.env.reset(**kwargs)
         print("Result from reset in CustomPreprocessingWrapper:", result)
+        
         if isinstance(result, tuple):
             obs, info = result
         else:
-            obs, info = result, {}
+            # Handle case where reset does not return a tuple
+            obs = result
+            info = {}
+
         processed_obs = self._process_obs(obs)
         return processed_obs, info
 
@@ -115,7 +119,6 @@ class CustomPreprocessingWrapper(gym.Wrapper):
             print(f"Unexpected observation shape: {obs.shape}")
             raise ValueError(f"Unexpected observation shape: {obs.shape}")
         return obs
-
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
