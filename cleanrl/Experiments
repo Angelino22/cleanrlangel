@@ -137,11 +137,6 @@ def make_env(env_id, seed, capture_video, run_name):
         env = CustomPreprocessingWrapper(env)
         env = gym.wrappers.FrameStack(env, 4)
 
-        # Set the environment seed for reproducibility
-        env.seed(seed)
-        env.action_space.seed(seed)
-        env.observation_space.seed(seed)
-
         return env
 
     return thunk
@@ -196,6 +191,13 @@ if __name__ == "__main__":
 
     # env setup
     env = make_env(args.env_id, args.seed, args.capture_video, run_name)()
+    
+    # Setting seeds for action and observation spaces if they exist
+    if hasattr(env.action_space, 'seed'):
+        env.action_space.seed(args.seed)
+    if hasattr(env.observation_space, 'seed'):
+        env.observation_space.seed(args.seed)
+
     obs, info = env.reset()  # Adjusted to standard gymnasium interface
 
     # Initialize agent networks and optimizers
