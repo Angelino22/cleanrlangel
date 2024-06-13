@@ -84,7 +84,11 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         )
 
     def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
+        obs = self.env.reset(**kwargs)
+        if isinstance(obs, tuple):  # Handle (obs, info) return
+            obs, info = obs
+        else:
+            info = {}
         processed_obs = self._process_obs(obs)
         return processed_obs, info
 
@@ -94,6 +98,9 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         return processed_obs, reward, done, trunc, info
 
     def _process_obs(self, obs):
+        if obs is None:
+            print("Warning: Received None observation")
+            return np.zeros((84, 84, 1), dtype=np.uint8)  # Return a default observation
         obs = np.array(obs)
         if len(obs.shape) == 3:
             obs = obs.mean(axis=2, keepdims=True)  # Convert to grayscale
@@ -180,7 +187,7 @@ if __name__ == "__main__":
 
     # env setup
     env = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    obs, info = env.reset(seed=args.seed)
+    obs, info = env.reset()  # Adjusted to standard gymnasium interface
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
