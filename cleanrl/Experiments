@@ -70,6 +70,13 @@ class Args:
     train_frequency: int = 4
     """the frequency of training"""
 
+
+# Custom ClipRewardEnv
+class ClipRewardEnv(gym.RewardWrapper):
+    def reward(self, reward):
+        """Bin reward to {+1, 0, -1} by its sign."""
+        return np.sign(reward)
+    
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
     def __init__(self, action_space):
@@ -105,7 +112,7 @@ def make_env(env_id, seed, capture_video, run_name):
 
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.ClipRewardEnv(env)
+        env = ClipRewardEnv(env)
         env = gym.wrappers.ResizeObservation(env, (84, 84))
         env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
