@@ -84,7 +84,9 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         )
 
     def reset(self, **kwargs):
+        print("Reset called on CustomPreprocessingWrapper")
         result = self.env.reset(**kwargs)
+        print("Result from reset in CustomPreprocessingWrapper:", result)
         if isinstance(result, tuple):
             obs, info = result
         else:
@@ -198,7 +200,9 @@ if __name__ == "__main__":
     if hasattr(env.observation_space, 'seed'):
         env.observation_space.seed(args.seed)
 
+    print("Resetting environment")
     obs, info = env.reset()  # Adjusted to standard gymnasium interface
+    print("Reset completed, obs:", obs, "info:", info)
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
