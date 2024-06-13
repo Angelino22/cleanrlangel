@@ -128,7 +128,9 @@ def make_env(env_id, seed, capture_video, run_name):
         env = foozpong_v3.env()
         env = CustomPreprocessingWrapper(env)
         
-        # Apply additional Gym wrappers for functionality and preprocessing
+        if capture_video:
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+        
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = ClipRewardEnv(env)
         env = gym.wrappers.FrameStack(env, 4)
@@ -191,9 +193,10 @@ if __name__ == "__main__":
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
-    action_space = env.action_space(agents[0]).n
-    q_networks = {agent: QNetwork(action_space).to(device) for agent in agents}
-    target_networks = {agent: QNetwork(action_space).to(device) for agent in agents}
+    action_space = env.action_space(agents[0])
+    observation_space = env.observation_space(agents[0])
+    q_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
+    target_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
     optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agents}
 
     # Load target networks with initial Q-network weights
@@ -202,8 +205,8 @@ if __name__ == "__main__":
 
     rb = ReplayBuffer(
         args.buffer_size,
-        env.observation_space,
-        env.action_space,
+        observation_space,
+        action_space,
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
