@@ -137,7 +137,8 @@ def make_env(env_id, seed, capture_video, run_name):
         env = CustomPreprocessingWrapper(env)
         env = gym.wrappers.FrameStack(env, 4)
 
-        # Set seeds for reproducibility
+        # Set the environment seed for reproducibility
+        env.seed(seed)
         env.action_space.seed(seed)
         env.observation_space.seed(seed)
 
