@@ -14,10 +14,7 @@ from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from pettingzoo.atari import foozpong_v3
 import wandb
-import gym
 from pettingzoo.utils import wrappers
-from pettingzoo.utils import to_parallel, from_parallel
-
 
 @dataclass
 class Args:
@@ -96,7 +93,6 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
 
-
 def make_env(env_id, seed, capture_video, run_name):
     """
     A thunk that will create and configure the environment.
@@ -107,14 +103,9 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.env()
 
-        # Convert the AEC environment to a parallel environment and then to a Gym environment
-        # (check documentation to ensure these conversions are necessary/applicable)
-        env = to_parallel(env)
-        env = from_parallel(env)
-
         # Set up video recording if requested
         if capture_video:
-            env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
+            env = wrappers.Monitor(env, f"./video/{run_name}", video_callable=lambda episode_id: True, force=True)
 
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
@@ -129,7 +120,6 @@ def make_env(env_id, seed, capture_video, run_name):
         return env
 
     return thunk
-
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
