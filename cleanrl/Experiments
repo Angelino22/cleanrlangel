@@ -117,23 +117,31 @@ class CustomPreprocessingWrapper(gym.Wrapper):
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
-
 def make_env(env_id, seed, capture_video, run_name):
     """
     A thunk that will create and configure the environment.
-    The function handles setting up video recording if requested and applies several common wrappers.
+    Wraps a PettingZoo environment for compatibility with Gym.
     """
     def thunk():
         # Create the PettingZoo environment
         env = foozpong_v3.env()
-        env = CustomPreprocessingWrapper(env)
-        
+
+        # Use the OrderEnforcing wrapper to ensure the environment adheres to Gym API
+        env = wrappers.OrderEnforcing(env)
+
+        # Set up video recording if requested
         if capture_video:
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}", episode_trigger=lambda x: True)
-        
+            env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
+
+        # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = ClipRewardEnv(env)
+        env = gym.wrappers.ClipRewardEnv(env)
+        env = gym.wrappers.ResizeObservation(env, (84, 84))
+        env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
+
+        # Set the environment seed for reproducibility
+        env.seed(seed)
 
         return env
 
