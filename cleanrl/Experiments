@@ -201,8 +201,8 @@ if __name__ == "__main__":
         env.observation_space.seed(args.seed)
 
     print("Resetting environment")
-    obs = env.reset()  # Adjusted to standard gymnasium interface
-    print("Reset completed, obs:", obs)
+    obs, info = env.reset()  # Adjusted to standard gymnasium interface
+    print("Reset completed, obs:", obs, "info:", info)
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
@@ -315,7 +315,7 @@ if __name__ == "__main__":
             )
             for idx, episodic_return in enumerate(episodic_returns):
                 writer.add_scalar(f"eval/episodic_return_{agent}", episodic_return, idx)
-                if args track:
+                if args.track:
                     wandb.log({f"eval/episodic_return_{agent}": episodic_return}, step=idx)
 
             if args.upload_model:
@@ -323,3 +323,4 @@ if __name__ == "__main__":
 
                 repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}-{agent}"
                 repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
+                push_to_hub(repo_id, model_path, args)
