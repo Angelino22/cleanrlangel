@@ -129,7 +129,7 @@ def make_env(env_id, seed, capture_video, run_name):
 
         # Set up video recording if requested
         if capture_video:
-            env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
+            env = gym.wrappers.RecordVideo(env, "./video", episode_trigger=lambda episode_id: True)
 
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
