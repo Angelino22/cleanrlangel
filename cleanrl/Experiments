@@ -202,8 +202,8 @@ if __name__ == "__main__":
 
     rb = ReplayBuffer(
         args.buffer_size,
-        env.observation_space(agents[0]),
-        env.action_space(agents[0]),
+        env.observation_space,
+        env.action_space,
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
