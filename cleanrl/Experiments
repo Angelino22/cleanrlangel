@@ -107,11 +107,19 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.env()
 
+        # Ensure the observation space is correctly set up
+        env.reset()
+        
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = ClipRewardEnv(env)
-        env = gym.wrappers.TransformObservation(env, lambda obs: obs.astype(np.uint8))  # Ensure dtype compatibility
-        env = gym.wrappers.ResizeObservation(env, (84, 84))
+
+        # Check if the observation space is Box type before applying ResizeObservation
+        if isinstance(env.observation_space(env.agents[0]), gym.spaces.Box):
+            env = gym.wrappers.ResizeObservation(env, (84, 84))
+        else:
+            raise TypeError(f"Expected the observation space to be Box, actual type: {type(env.observation_space(env.agents[0]))}")
+
         env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
 
@@ -121,6 +129,7 @@ def make_env(env_id, seed, capture_video, run_name):
         return env
 
     return thunk
+
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
