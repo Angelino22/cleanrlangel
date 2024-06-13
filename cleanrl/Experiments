@@ -127,7 +127,7 @@ def make_env(env_id, seed, capture_video, run_name):
     """
     def thunk():
         # Create the PettingZoo environment
-        env = foozpong_v3.env()
+        env = foozpong_v3.env(render_mode="rgb_array" if capture_video else None)
 
         # Set up video recording if requested
         if capture_video:
@@ -201,8 +201,8 @@ if __name__ == "__main__":
         env.observation_space.seed(args.seed)
 
     print("Resetting environment")
-    obs, info = env.reset()  # Adjusted to standard gymnasium interface
-    print("Reset completed, obs:", obs, "info:", info)
+    obs = env.reset()  # Adjusted to standard gymnasium interface
+    print("Reset completed, obs:", obs)
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
@@ -275,7 +275,7 @@ if __name__ == "__main__":
                 if global_step % 100 == 0:
                     writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
                     writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
-                    if args.track and agent == agents[0]:
+                    if args.track and agent == agents[0]]:
                         wandb.log({f"td_loss_{agent}": loss.item()}, step=global_step)
                         wandb.log({f"q_values_{agent}": old_val.mean().item()}, step=global_step)
                     print(f"SPS: {int(global_step / (time.time() - start_time))}")
@@ -315,7 +315,7 @@ if __name__ == "__main__":
             )
             for idx, episodic_return in enumerate(episodic_returns):
                 writer.add_scalar(f"eval/episodic_return_{agent}", episodic_return, idx)
-                if args.track:
+                if args track:
                     wandb.log({f"eval/episodic_return_{agent}": episodic_return}, step=idx)
 
             if args.upload_model:
