@@ -84,11 +84,11 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         )
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        if isinstance(obs, tuple):  # Handle (obs, info) return
-            obs, info = obs
+        result = self.env.reset(**kwargs)
+        if isinstance(result, tuple):
+            obs, info = result
         else:
-            info = {}
+            obs, info = result, {}
         processed_obs = self._process_obs(obs)
         return processed_obs, info
 
