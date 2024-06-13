@@ -10,7 +10,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import tyro
-from pettingzoo.utils import wrappers
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from pettingzoo.atari import foozpong_v3
@@ -118,6 +117,7 @@ class CustomPreprocessingWrapper(gym.Wrapper):
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
+
 def make_env(env_id, seed, capture_video, run_name):
     """
     A thunk that will create and configure the environment.
@@ -127,18 +127,14 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.env()
 
-        # Use the OrderEnforcing wrapper to ensure the environment adheres to Gym API
-        env = wrappers.OrderEnforcing(env)
-
         # Set up video recording if requested
         if capture_video:
             env = gym.wrappers.Monitor(env, "./video", video_callable=lambda episode_id: True, force=True)
 
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.ClipRewardEnv(env)
-        env = gym.wrappers.ResizeObservation(env, (84, 84))
-        env = gym.wrappers.GrayScaleObservation(env)
+        env = ClipRewardEnv(env)
+        env = CustomPreprocessingWrapper(env)
         env = gym.wrappers.FrameStack(env, 4)
 
         # Set the environment seed for reproducibility
