@@ -95,6 +95,7 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         obs = np.array(obs)
         obs = obs.mean(axis=2, keepdims=True)  # Convert to grayscale
         obs = obs.astype(np.uint8)
+        obs = np.array(obs)
         obs = np.resize(obs, (84, 84, 1))  # Resize observation
         return obs
 
@@ -131,8 +132,7 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.env()
         env = CustomPreprocessingWrapper(env)
-        env.seed(seed)
-
+        
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = ClipRewardEnv(env)
