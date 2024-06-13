@@ -93,10 +93,15 @@ class CustomPreprocessingWrapper(gym.Wrapper):
 
     def _process_obs(self, obs):
         obs = np.array(obs)
-        obs = obs.mean(axis=2, keepdims=True)  # Convert to grayscale
-        obs = obs.astype(np.uint8)
-        obs = np.array(obs)
-        obs = np.resize(obs, (84, 84, 1))  # Resize observation
+        if len(obs.shape) == 3:
+            obs = obs.mean(axis=2, keepdims=True)  # Convert to grayscale
+            obs = obs.astype(np.uint8)
+            obs = np.resize(obs, (84, 84, 1))  # Resize observation
+        elif len(obs.shape) == 2:
+            obs = obs[:, :, np.newaxis]  # Add channel dimension if missing
+            obs = np.resize(obs, (84, 84, 1))  # Resize observation
+        else:
+            raise ValueError(f"Unexpected observation shape: {obs.shape}")
         return obs
 
 # ALGO LOGIC: initialize agent here:
@@ -172,7 +177,7 @@ if __name__ == "__main__":
 
     # env setup
     env = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    env.reset(seed=args.seed)
+    obs = env.reset(seed=args.seed)
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
@@ -196,7 +201,6 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs, _ = env.reset(seed=args.seed)
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
