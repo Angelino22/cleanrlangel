@@ -84,12 +84,14 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         )
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        return self._process_obs(obs)
+        obs, info = self.env.reset(**kwargs)
+        processed_obs = self._process_obs(obs)
+        return processed_obs, info
 
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        return self._process_obs(obs), reward, done, info
+        obs, reward, done, trunc, info = self.env.step(action)
+        processed_obs = self._process_obs(obs)
+        return processed_obs, reward, done, trunc, info
 
     def _process_obs(self, obs):
         obs = np.array(obs)
@@ -101,28 +103,9 @@ class CustomPreprocessingWrapper(gym.Wrapper):
             obs = obs[:, :, np.newaxis]  # Add channel dimension if missing
             obs = np.resize(obs, (84, 84, 1))  # Resize observation
         else:
+            print(f"Unexpected observation shape: {obs.shape}")
             raise ValueError(f"Unexpected observation shape: {obs.shape}")
         return obs
-
-# ALGO LOGIC: initialize agent here:
-class QNetwork(nn.Module):
-    def __init__(self, action_space):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Conv2d(4, 32, 8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, 3, stride=1),
-            nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(3136, 512),
-            nn.ReLU(),
-            nn.Linear(512, action_space),
-        )
-
-    def forward(self, x):
-        return self.network(x / 255.0)
 
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
@@ -146,6 +129,26 @@ def make_env(env_id, seed, capture_video, run_name):
         return env
 
     return thunk
+
+# ALGO LOGIC: initialize agent here:
+class QNetwork(nn.Module):
+    def __init__(self, action_space):
+        super().__init__()
+        self.network = nn.Sequential(
+            nn.Conv2d(4, 32, 8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(3136, 512),
+            nn.ReLU(),
+            nn.Linear(512, action_space),
+        )
+
+    def forward(self, x):
+        return self.network(x / 255.0)
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
@@ -177,7 +180,7 @@ if __name__ == "__main__":
 
     # env setup
     env = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    obs = env.reset(seed=args.seed)
+    obs, info = env.reset(seed=args.seed)
 
     # Initialize agent networks and optimizers
     agents = env.possible_agents
