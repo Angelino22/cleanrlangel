@@ -103,10 +103,6 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.env()
 
-        # Set up video recording if requested
-        if capture_video:
-            env = gym.wrappers.Monitor(env, f"./video/{run_name}", video_callable=lambda episode_id: True, force=True)
-
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.ClipRewardEnv(env)
@@ -120,6 +116,7 @@ def make_env(env_id, seed, capture_video, run_name):
         return env
 
     return thunk
+
 
 
 if __name__ == "__main__":
