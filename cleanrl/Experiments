@@ -74,6 +74,30 @@ class ClipRewardEnv(gym.RewardWrapper):
         """Bin reward to {+1, 0, -1} by its sign."""
         return np.sign(reward)
 
+# Custom wrapper for preprocessing observations
+class CustomPreprocessingWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+        self.observation_space = gym.spaces.Box(
+            low=0, high=255, shape=(84, 84, 1), dtype=np.uint8
+        )
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        return self._process_obs(obs)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        return self._process_obs(obs), reward, done, info
+
+    def _process_obs(self, obs):
+        obs = np.array(obs)
+        obs = obs.mean(axis=2, keepdims=True)  # Convert to grayscale
+        obs = obs.astype(np.uint8)
+        obs = np.resize(obs, (84, 84, 1))  # Resize observation
+        return obs
+
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
     def __init__(self, action_space):
@@ -106,22 +130,13 @@ def make_env(env_id, seed, capture_video, run_name):
     def thunk():
         # Create the PettingZoo environment
         env = foozpong_v3.env()
-        env.reset(seed=seed)
+        env = CustomPreprocessingWrapper(env)
+        env.seed(seed)
 
         # Apply additional Gym wrappers for functionality and preprocessing
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = ClipRewardEnv(env)
-
-        # Verify the observation space is of type Box before applying ResizeObservation
-        agent = env.possible_agents[0]
-        obs_space = env.observation_space(agent)
-        if isinstance(obs_space, gym.spaces.Box):
-            env = gym.wrappers.ResizeObservation(env, shape=(84, 84))
-        else:
-            raise TypeError(f"Expected the observation space to be Box, actual type: {type(obs_space)}")
-
-        env = gym.wrappers.GrayScaleObservation(env)
-        env = gym.wrappers.FrameStack(env, num_stack=4)
+        env = gym.wrappers.FrameStack(env, 4)
 
         return env
 
