@@ -2,6 +2,7 @@
 import os
 import random
 import time
+import importlib
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -13,6 +14,13 @@ import torch.optim as optim
 import tyro
 import supersuit as ss
 from pettingzoo.atari import foozpong_v3
+from stable_baselines3.common.atari_wrappers import (
+    ClipRewardEnv,
+    EpisodicLifeEnv,
+    FireResetEnv,
+    MaxAndSkipEnv,
+    NoopResetEnv,
+)
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 
@@ -140,30 +148,58 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
+    action_space0 = gym.spaces.Discrete(9,seed=args.seed)
+    action_space1 = gym.spaces.Discrete(9,seed=args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
-    envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    agent_ids = envs.possible_agents
-    q_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
-    target_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
-    optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agent_ids}
-    for agent in agent_ids:
-        target_networks[agent].load_state_dict(q_networks[agent].state_dict())
 
-    rb = {agent: ReplayBuffer(
+
+    #envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
+    #agent_ids = envs.possible_agents
+    #q_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
+    #target_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
+    #optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agent_ids}
+    
+
+    env = importlib.import_module(f"pettingzoo.atari.{args.env_id}").parallel_env(render_mode="rgb_array")
+    env = ss.max_observation_v0(env, 2)
+    env = ss.color_reduction_v0(env, mode="B")
+    env = ss.pettingzoo_env_to_vec_env_v1(env)
+    envs = env
+    envs.single_observation_space = envs.observation_space
+    envs.single_action_space = envs.action_space
+    envs.is_vector_env = True
+    if args.capture_video:
+        envs = gym.wrappers.RecordVideo(envs, f"videos/{run_name}")
+    assert isinstance(
+        envs.single_action_space, gym.spaces.Discrete
+    ), "only discrete action space is supported"
+
+    agent_ids = envs.possible_agents
+
+
+    q_network = QNetwork(envs).to(device)
+    optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
+    target_network = QNetwork(envs).to(device)
+    target_network.load_state_dict(q_network.state_dict())
+
+
+    # for agent in agent_ids:
+    #     target_networks[agent].load_state_dict(q_networks[agent].state_dict())
+
+    rb = ReplayBuffer(
         args.buffer_size,
-        envs.observation_space(agent),
-        envs.action_space(agent),
+        envs.single_observation_space,
+        envs.single_action_space,
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
-    ) for agent in agent_ids}
-
+    )
     start_time = time.time()
 
 # TRY NOT TO MODIFY: start the game
-obs = envs.reset(seed=args.seed)  # Set seed during reset
+obs, _ = envs.reset(seed=args.seed)
 for global_step in range(args.total_timesteps):
     # ALGO LOGIC: put action logic here
     actions = {}
@@ -172,7 +208,7 @@ for global_step in range(args.total_timesteps):
         if random.random() < epsilon:
             actions[agent] = envs.action_space(agent).sample()
         else:
-            q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
+            q_values = q_network[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
             actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
     # TRY NOT TO MODIFY: execute the game and log data.
@@ -208,7 +244,7 @@ for global_step in range(args.total_timesteps):
         if random.random() < epsilon:
             actions[agent] = envs.action_space(agent).sample()
         else:
-            q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
+            q_values = q_network[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
             actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
     # TRY NOT TO MODIFY: execute the game and log data.
@@ -239,9 +275,9 @@ for global_step in range(args.total_timesteps):
                 if len(rb[agent]) >= args.batch_size:
                     data = rb[agent].sample(args.batch_size)
                     with torch.no_grad():
-                        target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
+                        target_max, _ = target_network[agent](data.next_observations).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
+                    old_val = q_network[agent](data.observations).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
@@ -251,14 +287,14 @@ for global_step in range(args.total_timesteps):
                         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
                     # optimize the model
-                    optimizers[agent].zero_grad()
+                    optimizer[agent].zero_grad()
                     loss.backward()
-                    optimizers[agent].step()
+                    optimizer[agent].step()
 
             # update target network
             if global_step % args.target_network_frequency == 0:
                 for agent in agent_ids:
-                    for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
+                    for target_network_param, q_network_param in zip(target_network[agent].parameters(), q_networks[agent].parameters()):
                         target_network_param.data.copy_(
                             args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
                         )
@@ -267,7 +303,7 @@ for global_step in range(args.total_timesteps):
 if args.save_model:
     for agent in agent_ids:
         model_path = f"runs/{run_name}/{args.exp_name}_{agent}.cleanrl_model"
-        torch.save(q_networks[agent].state_dict(), model_path)
+        torch.save(q_network[agent].state_dict(), model_path)
         print(f"model saved to {model_path}")
         from cleanrl_utils.evals.dqn_eval import evaluate
 
