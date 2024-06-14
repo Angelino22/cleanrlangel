@@ -177,6 +177,11 @@ if __name__ == "__main__":
 
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
+        for agent in agent_ids:
+            if agent in rewards:
+                episode_reward[agent_ids.index(agent)] += rewards[agent]
+                adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
+
         if dqn_agent in rewards:
             real_next_obs = next_obs[dqn_agent].copy()
             if truncations[dqn_agent]:
@@ -223,7 +228,7 @@ if __name__ == "__main__":
                                 "charts/episodic_return1": episode_reward[1],
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
-                                "charts/episodic_length": global_step - episode_length,
+                                "charts/episodic_length": episode_length,
                                 "charts/goals_scored": goals_scored,
                                 "charts/total_goals": total_goals,
                                 "global_step": global_step
