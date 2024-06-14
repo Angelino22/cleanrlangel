@@ -83,12 +83,8 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.resize_v1(env, x_size=84, y_size=84)
         env = ss.frame_stack_v1(env, 4)  # Ensure the number of frames stacked is 4
         env = ss.agent_indicator_v0(env, type_only=False)
-        # Commented out the video recording line
-        # if capture_video:
-        #     env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         return env
     return thunk
-
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
     def __init__(self, env):
