@@ -197,35 +197,35 @@ for agent in agent_ids:
 obs = next_obs
 
     # ALGO LOGIC: training.
-    if global_step > args.learning_starts:
-        if global_step % args.train_frequency == 0:
+if global_step > args.learning_starts:
+    if global_step % args.train_frequency == 0:
+        for agent in agent_ids:
+            if len(rb[agent]) >= args.batch_size:
+                data = rb[agent].sample(args.batch_size)
+                with torch.no_grad():
+                    target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
+                    td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
+                old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
+                loss = F.mse_loss(td_target, old_val)
+
+                if global_step % 100 == 0:
+                    writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
+                    writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
+                    print("SPS:", int(global_step / (time.time() - start_time)))
+                    writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+
+                # optimize the model
+                optimizers[agent].zero_grad()
+                loss.backward()
+                optimizers[agent].step()
+
+        # update target network
+        if global_step % args.target_network_frequency == 0:
             for agent in agent_ids:
-                if len(rb[agent]) >= args.batch_size:
-                    data = rb[agent].sample(args.batch_size)
-                    with torch.no_grad():
-                        target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
-                        td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
-                    loss = F.mse_loss(td_target, old_val)
-
-                    if global_step % 100 == 0:
-                        writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
-                        writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
-                        print("SPS:", int(global_step / (time.time() - start_time)))
-                        writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
-
-                    # optimize the model
-                    optimizers[agent].zero_grad()
-                    loss.backward()
-                    optimizers[agent].step()
-
-            # update target network
-            if global_step % args.target_network_frequency == 0:
-                for agent in agent_ids:
-                    for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
-                        target_network_param.data.copy_(
-                            args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
-                        )
+                for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
+                    target_network_param.data.copy_(
+                        args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
+                    )
 
 if args.save_model:
     for agent in agent_ids:
