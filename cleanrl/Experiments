@@ -156,10 +156,14 @@ if __name__ == "__main__":
     total_goals = 0
     goals_scored = 0
 
+    episode_reward = np.zeros(len(agent_ids))
+    adjusted_episode_reward = np.zeros(len(agent_ids))
+    episode_length = 0
+
     for global_step in range(args.total_timesteps):
         actions = {}
         for agent in agent_ids:
-            if agent == dqn_agent:
+            if agent == dqn_agent and agent in obs:
                 epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
@@ -167,7 +171,7 @@ if __name__ == "__main__":
                     obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
-            else:
+            elif agent in obs:
                 actions[agent] = envs.action_space(agent).sample()
 
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
@@ -187,6 +191,14 @@ if __name__ == "__main__":
             if rewards[dqn_agent] == 1:  # Assuming reward of 1 indicates a goal
                 goals_scored += 1
             total_goals += rewards[dqn_agent]
+
+        for i, agent in enumerate(agent_ids):
+            if agent in rewards:
+                episode_reward[i] += rewards[agent]
+                if rewards[agent] > 1:
+                    adjusted_episode_reward[i] += 1
+                else:
+                    adjusted_episode_reward[i] += rewards[agent]
 
         obs = next_obs
 
@@ -218,7 +230,7 @@ if __name__ == "__main__":
                                 "charts/episodic_return1": episode_reward[1],
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
-                                "charts/episodic_length": global_step - episode_length,
+                                "charts/episodic_length": episode_length,
                                 "charts/goals_scored": goals_scored,
                                 "charts/total_goals": total_goals,
                                 "global_step": global_step
@@ -227,6 +239,11 @@ if __name__ == "__main__":
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+
+        if any(terminations.values()):
+            episode_length = global_step
+            episode_reward = np.zeros(len(agent_ids))
+            adjusted_episode_reward = np.zeros(len(agent_ids))
 
         if global_step % args.target_network_frequency == 0:
             for target_network_param, q_network_param in zip(target_network.parameters(), q_network.parameters()):
