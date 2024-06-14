@@ -16,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pettingzoo.atari import foozpong_v3
 import wandb
 
+
 @dataclass
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
@@ -164,6 +165,8 @@ def make_env(env_id, seed, capture_video, run_name):
         # Create the PettingZoo environment
         env = foozpong_v3.parallel_env()
         print(f"Initial observation space: {env.observation_space}")
+        env.reset()  # Ensure the environment is initialized
+        print(f"Observation space after reset: {env.observation_space}")
         env = ColorReductionEnv(env)
         print(f"Observation space after color reduction: {env.observation_space}")
         env = ResizeObservationEnv(env, x_size=84, y_size=84)
