@@ -162,7 +162,7 @@ if __name__ == "__main__":
     #optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agent_ids}
     
 
-    env = importlib.import_module(f"pettingzoo.atari.{args.env_id}").parallel_env(render_mode="rgb_array")
+    #env = importlib.import_module(f"pettingzoo.atari.{args.env_id}").parallel_env(render_mode="rgb_array")
     env = ss.max_observation_v0(env, 2)
     env = ss.color_reduction_v0(env, mode="B")
     env = ss.pettingzoo_env_to_vec_env_v1(env)
