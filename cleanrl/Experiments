@@ -57,7 +57,7 @@ class Args:
     target_network_frequency: int = 1000
     """the timesteps it takes to update the target network"""
     batch_size: int = 32
-    """the batch size of sample from the replay memory"""
+    """the batch size of sample from the reply memory"""
     start_e: float = 1
     """the starting epsilon for exploration"""
     end_e: float = 0.01
@@ -157,7 +157,7 @@ class QNetwork(nn.Module):
             nn.Flatten(),
             nn.Linear(3136, 512),
             nn.ReLU(),
-            nn.Linear(512, action_space),
+            nn.Linear(512, action_space.n),
         )
 
     def forward(self, x):
