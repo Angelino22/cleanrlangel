@@ -165,9 +165,6 @@ if __name__ == "__main__":
     # TRY NOT TO MODIFY: start the game
     obs, _ = envs.reset(seed=args.seed)  # Set seed during reset
 
-    # Debug statement to check initial observation shape
-    print(f"Initial observation shape: {obs[dqn_agent].shape}")
-
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         actions = {}
@@ -178,8 +175,6 @@ if __name__ == "__main__":
                     actions[agent] = envs.action_space(agent).sample()
                 else:
                     obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
-                    # Debug statement to check tensor shape before passing to network
-                    print(f"Observation tensor shape at step {global_step}: {obs_tensor.shape}")
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             else:
@@ -187,9 +182,6 @@ if __name__ == "__main__":
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
-
-        # Debug statement to check next observation shape
-        print(f"Next observation shape at step {global_step}: {next_obs[dqn_agent].shape}")
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         for agent in agent_ids:
