@@ -44,7 +44,7 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "foozpong_v3"
     """the id of the environment"""
-    total_timesteps: int = 10000
+    total_timesteps: int = 10000000
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
@@ -66,7 +66,7 @@ class Args:
     """the ending epsilon for exploration"""
     exploration_fraction: float = 0.10
     """the fraction of `total-timesteps` it takes from start-e to go end-e"""
-    learning_starts: int = 1000
+    learning_starts: int = 80000
     """timestep to start learning"""
     train_frequency: int = 4
     """the frequency of training"""
@@ -161,6 +161,7 @@ if __name__ == "__main__":
     episode_length = 0
 
     for global_step in range(args.total_timesteps):
+        print(f"Global step: {global_step}")  # Debugging print
         actions = {}
         for agent in agent_ids:
             if agent == dqn_agent and agent in obs:
@@ -192,19 +193,11 @@ if __name__ == "__main__":
                 goals_scored += 1
             total_goals += rewards[dqn_agent]
 
-        for i, agent in enumerate(agent_ids):
-            if agent in rewards:
-                episode_reward[i] += rewards[agent]
-                if rewards[agent] > 1:
-                    adjusted_episode_reward[i] += 1
-                else:
-                    adjusted_episode_reward[i] += rewards[agent]
-
         obs = next_obs
 
         if global_step > args.learning_starts:
             if global_step % args.train_frequency == 0:
-                if len(rb) >= args.batch_size:
+                if rb.buffer_size >= args.batch_size:  # Updated to use buffer_size
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
                         next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device)
@@ -230,7 +223,7 @@ if __name__ == "__main__":
                                 "charts/episodic_return1": episode_reward[1],
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
-                                "charts/episodic_length": episode_length,
+                                "charts/episodic_length": global_step - episode_length,
                                 "charts/goals_scored": goals_scored,
                                 "charts/total_goals": total_goals,
                                 "global_step": global_step
@@ -239,11 +232,6 @@ if __name__ == "__main__":
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
-
-        if any(terminations.values()):
-            episode_length = global_step
-            episode_reward = np.zeros(len(agent_ids))
-            adjusted_episode_reward = np.zeros(len(agent_ids))
 
         if global_step % args.target_network_frequency == 0:
             for target_network_param, q_network_param in zip(target_network.parameters(), q_network.parameters()):
