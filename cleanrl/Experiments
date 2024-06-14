@@ -190,8 +190,8 @@ if __name__ == "__main__":
                 if truncations[agent]:
                     real_next_obs = infos[agent].get("final_observation", real_next_obs)
                 rb.add(
-                    torch.tensor(obs[agent], dtype=torch.float32).permute(2, 0, 1),
-                    torch.tensor(real_next_obs, dtype=torch.float32).permute(2, 0, 1),
+                    obs[agent].transpose(2, 0, 1),
+                    real_next_obs.transpose(2, 0, 1),
                     actions[agent],
                     rewards[agent],
                     terminations[agent],
