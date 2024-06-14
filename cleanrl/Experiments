@@ -152,11 +152,10 @@ if __name__ == "__main__":
 
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
     agent_ids = envs.possible_agents
-    q_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
-    target_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
-    optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agent_ids}
-    for agent in agent_ids:
-        target_networks[agent].load_state_dict(q_networks[agent].state_dict())
+    q_networks = QNetwork(envs).to(device)
+    target_networks = QNetwork(envs).to(device)
+    optimizers = optim.Adam(q_network.parameters(), lr=args.learning_rate)
+    target_networks[agent].load_state_dict(q_networks[agent].state_dict())
 
     rb = {agent: ReplayBuffer(
         args.buffer_size,
