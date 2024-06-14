@@ -170,7 +170,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs = envs.reset(seed=args.seed)  # Set seed during reset
+    obs, _ = envs.reset(seed=args.seed)  # Set seed during reset
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         actions = {}
