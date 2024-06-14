@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import tyro
 import supersuit as ss
-from pettingzoo.atari import foozpong_v4
+from pettingzoo.atari import foozpong_v3
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 
@@ -43,7 +43,7 @@ class Args:
     """the user or org name of the model repository from the Hugging Face Hub"""
 
     # Algorithm specific arguments
-    env_id: str = "foozpong_v4"
+    env_id: str = "foozpong_v3"
     """the id of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
@@ -75,7 +75,7 @@ class Args:
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
-        env = foozpong_v4.parallel_env()
+        env = foozpong_v3.parallel_env()
         env = ss.max_observation_v0(env, 2)
         env = ss.frame_skip_v0(env, 4)
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
