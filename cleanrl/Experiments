@@ -152,125 +152,92 @@ if __name__ == "__main__":
 
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
     agent_ids = envs.possible_agents
-    q_networks = QNetwork(envs).to(device)
-    target_networks = QNetwork(envs).to(device)
-    optimizers = optim.Adam(q_networks.parameters(), lr=args.learning_rate)
-    target_networks.load_state_dict(q_networks.state_dict())
+    dqn_agent = agent_ids[0]  # Assigning the first agent as the DQN agent
+    q_network = QNetwork(envs).to(device)
+    target_network = QNetwork(envs).to(device)
+    optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
+    target_network.load_state_dict(q_network.state_dict())
 
-    rb = {agent: ReplayBuffer(
+    rb = ReplayBuffer(
         args.buffer_size,
-        envs.observation_space(agent),
-        envs.action_space(agent),
+        envs.observation_space(dqn_agent),
+        envs.action_space(dqn_agent),
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
-    ) for agent in agent_ids}
+    )
 
     start_time = time.time()
 
-# TRY NOT TO MODIFY: start the game
-obs = envs.reset(seed=args.seed)  # Set seed during reset
-for global_step in range(args.total_timesteps):
-    # ALGO LOGIC: put action logic here
-    actions = {}
-    for agent in agent_ids:
-        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
-        if random.random() < epsilon:
-            actions[agent] = envs.action_space(agent).sample()
-        else:
-            q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
-            actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
+    # TRY NOT TO MODIFY: start the game
+    obs = envs.reset(seed=args.seed)  # Set seed during reset
+    for global_step in range(args.total_timesteps):
+        # ALGO LOGIC: put action logic here
+        actions = {}
+        for agent in agent_ids:
+            if agent == dqn_agent:
+                epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+                if random.random() < epsilon:
+                    actions[agent] = envs.action_space(agent).sample()
+                else:
+                    q_values = q_network(torch.Tensor(obs[agent]).unsqueeze(0).to(device))
+                    actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
+            else:
+                actions[agent] = envs.action_space(agent).sample()
 
-    # TRY NOT TO MODIFY: execute the game and log data.
-next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+        # TRY NOT TO MODIFY: execute the game and log data.
+        next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
-# TRY NOT TO MODIFY: record rewards for plotting purposes
-for agent in agent_ids:
-    if agent in rewards:
-        real_next_obs = next_obs[agent].copy()
-        if truncations[agent]:
-            real_next_obs = infos[agent].get("final_observation", real_next_obs)
-        rb[agent].add(
-            obs[agent],
-            real_next_obs,
-            actions[agent],
-            rewards[agent],
-            terminations[agent],
-            infos.get(agent, {})
-        )
-
-# TRY NOT TO MODIFY: CRUCIAL step easy to overlook
-# TRY NOT TO MODIFY: start the game
-obs, _ = envs.reset(seed=args.seed) # Set seed during reset
-
-for global_step in range(args.total_timesteps):
-    # ALGO LOGIC: put action logic here
-    actions = {}
-    for agent in agent_ids:
-        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
-        if random.random() < epsilon:
-            actions[agent] = envs.action_space(agent).sample()
-        else:
-            q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
-            actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
-
-    # TRY NOT TO MODIFY: execute the game and log data.
-    next_obs, rewards, terminations, truncations, infos = envs.step(actions)
-
-    # TRY NOT TO MODIFY: record rewards for plotting purposes
-    for agent in agent_ids:
-        if agent in rewards:
-            real_next_obs = next_obs[agent].copy()
-            if truncations[agent]:
-                real_next_obs = infos[agent].get("final_observation", real_next_obs)
-            rb[agent].add(
-                obs[agent],
+        # TRY NOT TO MODIFY: record rewards for plotting purposes
+        if dqn_agent in rewards:
+            real_next_obs = next_obs[dqn_agent].copy()
+            if truncations[dqn_agent]:
+                real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
+            rb.add(
+                obs[dqn_agent],
                 real_next_obs,
-                actions[agent],
-                rewards[agent],
-                terminations[agent],
-                infos.get(agent, {})
+                actions[dqn_agent],
+                rewards[dqn_agent],
+                terminations[dqn_agent],
+                infos.get(dqn_agent, {})
             )
 
-    # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
-    obs = next_obs
+        # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
+        obs = next_obs
 
-    # ALGO LOGIC: training.
-    if global_step > args.learning_starts:
-        if global_step % args.train_frequency == 0:
-            for agent in agent_ids:
-                if len(rb[agent]) >= args.batch_size:
-                    data = rb[agent].sample(args.batch_size)
+        # ALGO LOGIC: training.
+        if global_step > args.learning_starts:
+            if global_step % args.train_frequency == 0:
+                if len(rb) >= args.batch_size:
+                    data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
+                        target_max, _ = target_network(data.next_observations).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
+                    old_val = q_network(data.observations).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
-                        writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
-                        writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
+                        writer.add_scalar(f"losses/td_loss_{dqn_agent}", loss, global_step)
+                        writer.add_scalar(f"losses/q_values_{dqn_agent}", old_val.mean().item(), global_step)
                         print("SPS:", int(global_step / (time.time() - start_time)))
                         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
                     # optimize the model
-                    optimizers[agent].zero_grad()
+                    optimizer.zero_grad()
                     loss.backward()
-                    optimizers[agent].step()
+                    optimizer.step()
 
             # update target network
             if global_step % args.target_network_frequency == 0:
-                for agent in agent_ids:
-                    for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
-                        target_network_param.data.copy_(
-                            args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
-                        )
+                for target_network_param, q_network_param in zip(target_network.parameters(), q_network.parameters()):
+                    target_network_param.data.copy_(
+                        args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
+                    )
 
 
-if args.save_model:
-    for agent in agent_ids:
-        model_path = f"runs/{run_name}/{args.exp_name}_{agent}.cleanrl_model"
-        torch.save(q_networks[agent].state_dict(), model_path)
+    if args.save_model:
+        model_path = f"runs/{run_name}/{args.exp_name}_{dqn_agent}.cleanrl_model"
+        torch.save(q_network.state_dict(), model_path)
         print(f"model saved to {model_path}")
         from cleanrl_utils.evals.dqn_eval import evaluate
 
@@ -285,7 +252,7 @@ if args.save_model:
             epsilon=0.05,
         )
         for idx, episodic_return in enumerate(episodic_returns):
-            writer.add_scalar(f"eval/episodic_return_{agent}", episodic_return, idx)
+            writer.add_scalar(f"eval/episodic_return_{dqn_agent}", episodic_return, idx)
 
         if args.upload_model:
             from cleanrl_utils.huggingface import push_to_hub
@@ -294,5 +261,5 @@ if args.save_model:
             repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
             push_to_hub(args, episodic_returns, repo_id, "DQN", f"runs/{run_name}", f"videos/{run_name}-eval")
 
-envs.close()
-writer.close()
+    envs.close()
+    writer.close()
