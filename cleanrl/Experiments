@@ -164,6 +164,10 @@ if __name__ == "__main__":
 
     # TRY NOT TO MODIFY: start the game
     obs, _ = envs.reset(seed=args.seed)  # Set seed during reset
+
+    # Debug statement to check initial observation shape
+    print(f"Initial observation shape: {obs[dqn_agent].shape}")
+
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         actions = {}
@@ -173,14 +177,19 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.Tensor(obs[agent]).unsqueeze(0).permute(0, 3, 1, 2).to(device)
-                    q_values = q_network(torch.Tensor(obs[agent]).unsqueeze(0).permute(0, 3, 1, 2).to(device))
+                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    # Debug statement to check tensor shape before passing to network
+                    print(f"Observation tensor shape at step {global_step}: {obs_tensor.shape}")
+                    q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             else:
                 actions[agent] = envs.action_space(agent).sample()
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+
+        # Debug statement to check next observation shape
+        print(f"Next observation shape at step {global_step}: {next_obs[dqn_agent].shape}")
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         for agent in agent_ids:
@@ -206,11 +215,11 @@ if __name__ == "__main__":
                 if len(rb) >= args.batch_size:
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        next_obs_tensor = data.next_observations.permute(0, 3, 1, 2).to(device)
-                        target_max, _ = target_network(data.next_observations.permute(0, 3, 1, 2)).max(dim=1)
+                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).permute(0, 3, 1, 2).to(device)
+                        target_max, _ = target_network(next_obs_tensor).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    obs_tensor = data.observations.permute(0, 3, 1, 2).to(device)
-                    old_val = q_network(data.next_observations.permute(0, 3, 1, 2)).gather(1, data.actions).squeeze()
+                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).permute(0, 3, 1, 2).to(device)
+                    old_val = q_network(obs_tensor).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
@@ -219,7 +228,6 @@ if __name__ == "__main__":
                         print("SPS:", int(global_step / (time.time() - start_time)))
                         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-                    # optimize the model
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -230,7 +238,6 @@ if __name__ == "__main__":
                     target_network_param.data.copy_(
                         args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
                     )
-
 
     if args.save_model:
         model_path = f"runs/{run_name}/{args.exp_name}_{dqn_agent}.cleanrl_model"
