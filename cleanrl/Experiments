@@ -84,17 +84,11 @@ class CustomPreprocessingWrapper(gym.Wrapper):
         )
 
     def reset(self, **kwargs):
-        print("Reset called on CustomPreprocessingWrapper")
-        result = self.env.reset(**kwargs)
-        print("Result from reset in CustomPreprocessingWrapper:", result)
-        
-        if isinstance(result, tuple):
-            obs, info = result
+        obs = self.env.reset(**kwargs)
+        if isinstance(obs, tuple):  # Handle (obs, info) return
+            obs, info = obs
         else:
-            # Handle case where reset does not return a tuple
-            obs = result
             info = {}
-
         processed_obs = self._process_obs(obs)
         return processed_obs, info
 
@@ -127,21 +121,22 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 def make_env(env_id, seed, capture_video, run_name):
     """
     A thunk that will create and configure the environment.
-    Wraps a PettingZoo environment for compatibility with Gym.
+    The function handles setting up video recording if requested and applies several common wrappers.
     """
     def thunk():
         # Create the PettingZoo environment
-        env = foozpong_v3.env(render_mode="rgb_array" if capture_video else None)
-
-        # Set up video recording if requested
+        env = foozpong_v3.parallel_env()
+        env = ss.color_reduction_v0(env, mode='B')
+        env = ss.resize_v1(env, x_size=84, y_size=84)
+        env = ss.frame_stack_v1(env, 4)
+        env = ss.clip_reward_v0(env, -1, 1)
+        env = ss.pettingzoo_env_to_vec_env_v1(env)
+        env = ss.concat_vec_envs_v1(env, 2, num_cpus=0, base_class="gym")
+        
         if capture_video:
-            env = gym.wrappers.RecordVideo(env, "./video", episode_trigger=lambda episode_id: True)
-
-        # Apply additional Gym wrappers for functionality and preprocessing
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}", episode_trigger=lambda x: True, disable_logger=True)
+        
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = ClipRewardEnv(env)
-        env = CustomPreprocessingWrapper(env)
-        env = gym.wrappers.FrameStack(env, 4)
 
         return env
 
@@ -161,7 +156,7 @@ class QNetwork(nn.Module):
             nn.Flatten(),
             nn.Linear(3136, 512),
             nn.ReLU(),
-            nn.Linear(512, action_space.n),
+            nn.Linear(512, action_space),
         )
 
     def forward(self, x):
@@ -196,24 +191,15 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
-    env = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    
-    # Setting seeds for action and observation spaces if they exist
-    if hasattr(env.action_space, 'seed'):
-        env.action_space.seed(args.seed)
-    if hasattr(env.observation_space, 'seed'):
-        env.observation_space.seed(args.seed)
-
-    print("Resetting environment")
-    obs, info = env.reset()  # Adjusted to standard gymnasium interface
-    print("Reset completed, obs:", obs, "info:", info)
+    envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
+    obs = envs.reset()  # Adjusted to standard gymnasium interface
 
     # Initialize agent networks and optimizers
-    agents = env.possible_agents
-    action_space = env.action_space(agents[0])
-    observation_space = env.observation_space(agents[0])
-    q_networks = {agent: QNetwork(action_space).to(device) for agent in agents}
-    target_networks = {agent: QNetwork(action_space).to(device) for agent in agents}
+    agents = envs.unwrapped.agents
+    action_space = envs.action_space
+    observation_space = envs.observation_space
+    q_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
+    target_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
     optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agents}
 
     # Load target networks with initial Q-network weights
@@ -237,13 +223,13 @@ if __name__ == "__main__":
         actions = {}
         for agent in agents:
             if random.random() < epsilon:
-                actions[agent] = env.action_space.sample()
+                actions[agent] = action_space.sample()
             else:
                 q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
                 actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
         # TRY NOT TO MODIFY: execute the game and log data.
-        next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        next_obs, rewards, terminations, truncations, infos = envs.step(actions)
         
         # Log episodic return and length for each agent
         if "final_info" in infos[agents[0]]:
@@ -327,4 +313,3 @@ if __name__ == "__main__":
 
                 repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}-{agent}"
                 repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
-                push_to_hub(repo_id, model_path, args)
