@@ -1,8 +1,8 @@
+# docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/dqn/#dqn_ataripy
 import os
 import random
 import time
 from dataclasses import dataclass
-from collections import deque
 
 import gymnasium as gym
 import numpy as np
@@ -11,10 +11,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import tyro
+import supersuit as ss
+from pettingzoo.atari import foozpong_v4
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
-from pettingzoo.atari import foozpong_v3
-import wandb
 
 
 @dataclass
@@ -29,7 +29,7 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "FOOZPONG"
+    wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
     wandb_entity: str = None
     """the entity (team) of wandb's project"""
@@ -43,12 +43,14 @@ class Args:
     """the user or org name of the model repository from the Hugging Face Hub"""
 
     # Algorithm specific arguments
-    env_id: str = "foozpong_v3"
+    env_id: str = "foozpong_v4"
     """the id of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
+    num_envs: int = 1
+    """the number of parallel game environments"""
     buffer_size: int = 1000000
     """the replay memory buffer size"""
     gamma: float = 0.99
@@ -70,124 +72,27 @@ class Args:
     train_frequency: int = 4
     """the frequency of training"""
 
-# Custom ClipRewardEnv
-class ClipRewardEnv(gym.RewardWrapper):
-    def reward(self, reward):
-        """Bin reward to {+1, 0, -1} by its sign."""
-        return np.sign(reward)
-
-# Custom wrapper for color reduction
-class ColorReductionEnv(gym.ObservationWrapper):
-    def __init__(self, env):
-        super().__init__(env)
-        original_shape = env.observation_space.shape
-        print(f"Original observation space shape: {original_shape}")
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(original_shape[0], original_shape[1], 1), dtype=np.uint8
-        )
-
-    def observation(self, observation):
-        return np.mean(observation, axis=-1, keepdims=True).astype(np.uint8)
-
-# Custom wrapper for resizing observations
-class ResizeObservationEnv(gym.ObservationWrapper):
-    def __init__(self, env, x_size, y_size):
-        super().__init__(env)
-        self.x_size = x_size
-        self.y_size = y_size
-        original_shape = env.observation_space.shape
-        print(f"Original observation space shape before resizing: {original_shape}")
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(x_size, y_size, original_shape[-1]), dtype=np.uint8
-        )
-
-    def observation(self, observation):
-        from PIL import Image
-        observation = Image.fromarray(observation)
-        observation = observation.resize((self.x_size, self.y_size))
-        return np.array(observation)
-
-# Custom wrapper for frame stacking
-class FrameStackEnv(gym.Wrapper):
-    def __init__(self, env, k):
-        super().__init__(env)
-        self.k = k
-        self.frames = deque([], maxlen=k)
-        shp = env.observation_space.shape
-        print(f"Original observation space shape before stacking: {shp}")
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(shp[0], shp[1], shp[2] * k), dtype=np.uint8
-        )
-
-    def reset(self):
-        ob = self.env.reset()
-        for _ in range(self.k):
-            self.frames.append(ob)
-        return self._get_ob()
-
-    def step(self, action):
-        ob, reward, done, trunc, info = self.env.step(action)
-        self.frames.append(ob)
-        return self._get_ob(), reward, done, trunc, info
-
-    def _get_ob(self):
-        return np.concatenate(self.frames, axis=-1)
-
-# Custom wrapper for frame skip
-class FrameSkipEnv(gym.Wrapper):
-    def __init__(self, env, skip):
-        super().__init__(env)
-        self._skip = skip
-
-    def step(self, action):
-        total_reward = 0.0
-        done = None
-        for _ in range(self._skip):
-            obs, reward, done, trunc, info = self.env.step(action)
-            total_reward += reward
-            if done:
-                break
-        return obs, total_reward, done, trunc, info
-
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
-
-def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
-    slope = (end_e - start_e) / duration
-    return max(slope * t + start_e, end_e)
 
 def make_env(env_id, seed, capture_video, run_name):
-    """
-    A thunk that will create and configure the environment.
-    The function handles setting up video recording if requested and applies several common wrappers.
-    """
     def thunk():
-        # Create the PettingZoo environment
-        env = foozpong_v3.parallel_env()
-        print(f"Initial observation space: {env.observation_space}")
-        env.reset()  # Ensure the environment is initialized
-        print(f"Observation space after reset: {env.observation_space}")
-        env = ColorReductionEnv(env)
-        print(f"Observation space after color reduction: {env.observation_space}")
-        env = ResizeObservationEnv(env, x_size=84, y_size=84)
-        print(f"Observation space after resizing: {env.observation_space}")
-        env = FrameStackEnv(env, 4)
-        print(f"Observation space after frame stacking: {env.observation_space}")
-        env = ClipRewardEnv(env)
-        env = FrameSkipEnv(env, 4)
-        
+        env = foozpong_v4.parallel_env()
+        env = ss.max_observation_v0(env, 2)
+        env = ss.frame_skip_v0(env, 4)
+        env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
+        env = ss.color_reduction_v0(env, mode="B")
+        env = ss.resize_v1(env, x_size=84, y_size=84)
+        env = ss.frame_stack_v1(env, 4)
+        env = ss.agent_indicator_v0(env, type_only=False)
         if capture_video:
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}", episode_trigger=lambda x: True, disable_logger=True)
-        
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+        env.seed(seed)
         return env
 
     return thunk
 
-# ALGO LOGIC: initialize agent here:
+
 class QNetwork(nn.Module):
-    def __init__(self, action_space):
+    def __init__(self, env):
         super().__init__()
         self.network = nn.Sequential(
             nn.Conv2d(4, 32, 8, stride=4),
@@ -199,17 +104,24 @@ class QNetwork(nn.Module):
             nn.Flatten(),
             nn.Linear(3136, 512),
             nn.ReLU(),
-            nn.Linear(512, action_space),
+            nn.Linear(512, env.action_space(env.possible_agents[0]).n),
         )
 
     def forward(self, x):
         return self.network(x / 255.0)
 
+
+def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
+    slope = (end_e - start_e) / duration
+    return max(slope * t + start_e, end_e)
+
+
 if __name__ == "__main__":
     args = tyro.cli(Args)
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    
     if args.track:
+        import wandb
+
         wandb.init(
             project=args.wandb_project_name,
             entity=args.wandb_entity,
@@ -225,7 +137,6 @@ if __name__ == "__main__":
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
-    # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -233,104 +144,85 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
-    # env setup
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
-    obs = envs.reset()  # Adjusted to standard gymnasium interface
-
-    # Initialize agent networks and optimizers
-    agents = envs.unwrapped.agents
-    action_space = envs.action_space
-    observation_space = envs.observation_space
-    q_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
-    target_networks = {agent: QNetwork(action_space.n).to(device) for agent in agents}
-    optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agents}
-
-    # Load target networks with initial Q-network weights
-    for agent in agents:
+    agent_ids = envs.possible_agents
+    q_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
+    target_networks = {agent: QNetwork(envs).to(device) for agent in agent_ids}
+    optimizers = {agent: optim.Adam(q_networks[agent].parameters(), lr=args.learning_rate) for agent in agent_ids}
+    for agent in agent_ids:
         target_networks[agent].load_state_dict(q_networks[agent].state_dict())
 
-    rb = ReplayBuffer(
+    rb = {agent: ReplayBuffer(
         args.buffer_size,
-        observation_space,
-        action_space,
+        envs.observation_space(agent),
+        envs.action_space(agent),
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
-    )
+    ) for agent in agent_ids}
+
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
+    obs = envs.reset(seed=args.seed)
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
-        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
         actions = {}
-        for agent in agents:
+        for agent in agent_ids:
+            epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
             if random.random() < epsilon:
-                actions[agent] = action_space.sample()
+                actions[agent] = envs.action_space(agent).sample()
             else:
                 q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
                 actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
-        
-        # Log episodic return and length for each agent
-        if "final_info" in infos[agents[0]]:
-            for agent in agents:
-                if "episode" in infos[agent]["final_info"]:
-                    print(f"global_step={global_step}, episodic_return={infos[agent]['final_info']['episode']['r']}")
-                    writer.add_scalar(f"charts/episodic_return_{agent}", infos[agent]['final_info']['episode']['r'], global_step)
-                    writer.add_scalar(f"charts/episodic_length_{agent}", infos[agent]['final_info']['episode']['l'], global_step)
-                    if args.track:
-                        wandb.log({f"episodic_return_{agent}": infos[agent]['final_info']['episode']['r']}, step=global_step)
-                        wandb.log({f"episodic_length_{agent}": infos[agent]['final_info']['episode']['l']}, step=global_step)
 
-        # Handle next observation for each agent and add to replay buffer
-        real_next_obs = next_obs.copy()
-        for idx, agent in enumerate(agents):
-            if truncations[agent]:
-                real_next_obs[agent] = infos[agent]["final_observation"]
-            rb.add(obs[agent], real_next_obs[agent], actions[agent], rewards[agent], terminations[agent], infos[agent])
+        # TRY NOT TO MODIFY: record rewards for plotting purposes
+        for agent in agent_ids:
+            if agent in rewards:
+                real_next_obs = next_obs[agent].copy()
+                if truncations[agent]:
+                    real_next_obs = infos[agent]["final_observation"]
+                rb[agent].add(obs[agent], real_next_obs, actions[agent], rewards[agent], terminations[agent], infos[agent])
 
-        # Update observations
+        # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
 
-        # ALGO LOGIC: training
-        if global_step > args.learning_starts and global_step % args.train_frequency == 0:
-            for agent in agents:
-                data = rb.sample(args.batch_size)
-                with torch.no_grad():
-                    target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
-                    td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
-                loss = F.mse_loss(td_target, old_val)
+        # ALGO LOGIC: training.
+        if global_step > args.learning_starts:
+            if global_step % args.train_frequency == 0:
+                for agent in agent_ids:
+                    if len(rb[agent]) >= args.batch_size:
+                        data = rb[agent].sample(args.batch_size)
+                        with torch.no_grad():
+                            target_max, _ = target_networks[agent](data.next_observations).max(dim=1)
+                            td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
+                        old_val = q_networks[agent](data.observations).gather(1, data.actions).squeeze()
+                        loss = F.mse_loss(td_target, old_val)
 
-                if global_step % 100 == 0:
-                    writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
-                    writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
-                    if args.track and agent == agents[0]:
-                        wandb.log({f"td_loss_{agent}": loss.item()}, step=global_step)
-                        wandb.log({f"q_values_{agent}": old_val.mean().item()}, step=global_step)
-                    print(f"SPS: {int(global_step / (time.time() - start_time))}")
-                    writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
-                    if args.track:
-                        wandb.log({"SPS": int(global_step / (time.time() - start_time))}, step=global_step)
+                        if global_step % 100 == 0:
+                            writer.add_scalar(f"losses/td_loss_{agent}", loss, global_step)
+                            writer.add_scalar(f"losses/q_values_{agent}", old_val.mean().item(), global_step)
+                            print("SPS:", int(global_step / (time.time() - start_time)))
+                            writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-                # Optimize the model
-                optimizers[agent].zero_grad()
-                loss.backward()
-                optimizers[agent].step()
+                        # optimize the model
+                        optimizers[agent].zero_grad()
+                        loss.backward()
+                        optimizers[agent].step()
 
-            # Update target networks
-            if global_step % args.target_network_frequency == 0:
-                for agent in agents:
-                    for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
-                        target_network_param.data.copy_(
-                            args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
-                        )
+                # update target network
+                if global_step % args.target_network_frequency == 0:
+                    for agent in agent_ids:
+                        for target_network_param, q_network_param in zip(target_networks[agent].parameters(), q_networks[agent].parameters()):
+                            target_network_param.data.copy_(
+                                args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
+                            )
 
     if args.save_model:
-        for agent in agents:
+        for agent in agent_ids:
             model_path = f"runs/{run_name}/{args.exp_name}_{agent}.cleanrl_model"
             torch.save(q_networks[agent].state_dict(), model_path)
             print(f"model saved to {model_path}")
@@ -348,11 +240,13 @@ if __name__ == "__main__":
             )
             for idx, episodic_return in enumerate(episodic_returns):
                 writer.add_scalar(f"eval/episodic_return_{agent}", episodic_return, idx)
-                if args.track:
-                    wandb.log({f"eval/episodic_return_{agent}": episodic_return}, step=idx)
 
             if args.upload_model:
                 from cleanrl_utils.huggingface import push_to_hub
 
-                repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}-{agent}"
+                repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}"
                 repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
+                push_to_hub(args, episodic_returns, repo_id, "DQN", f"runs/{run_name}", f"videos/{run_name}-eval")
+
+    envs.close()
+    writer.close()
