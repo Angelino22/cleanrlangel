@@ -80,6 +80,7 @@ class ColorReductionEnv(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         original_shape = env.observation_space.shape
+        print(f"Original observation space shape: {original_shape}")
         self.observation_space = gym.spaces.Box(
             low=0, high=255, shape=(original_shape[0], original_shape[1], 1), dtype=np.uint8
         )
@@ -94,6 +95,7 @@ class ResizeObservationEnv(gym.ObservationWrapper):
         self.x_size = x_size
         self.y_size = y_size
         original_shape = env.observation_space.shape
+        print(f"Original observation space shape before resizing: {original_shape}")
         self.observation_space = gym.spaces.Box(
             low=0, high=255, shape=(x_size, y_size, original_shape[-1]), dtype=np.uint8
         )
@@ -111,6 +113,7 @@ class FrameStackEnv(gym.Wrapper):
         self.k = k
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
+        print(f"Original observation space shape before stacking: {shp}")
         self.observation_space = gym.spaces.Box(
             low=0, high=255, shape=(shp[0], shp[1], shp[2] * k), dtype=np.uint8
         )
@@ -160,9 +163,13 @@ def make_env(env_id, seed, capture_video, run_name):
     def thunk():
         # Create the PettingZoo environment
         env = foozpong_v3.parallel_env()
+        print(f"Initial observation space: {env.observation_space}")
         env = ColorReductionEnv(env)
+        print(f"Observation space after color reduction: {env.observation_space}")
         env = ResizeObservationEnv(env, x_size=84, y_size=84)
+        print(f"Observation space after resizing: {env.observation_space}")
         env = FrameStackEnv(env, 4)
+        print(f"Observation space after frame stacking: {env.observation_space}")
         env = ClipRewardEnv(env)
         env = FrameSkipEnv(env, 4)
         
