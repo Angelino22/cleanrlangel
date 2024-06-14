@@ -180,12 +180,14 @@ if __name__ == "__main__":
             real_next_obs = next_obs[dqn_agent].copy()
             if truncations[dqn_agent]:
                 real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
+            print(f"obs[dqn_agent] shape: {np.array(obs[dqn_agent]).shape}")
+            print(f"real_next_obs shape: {np.array(real_next_obs).shape}")
             rb.add(
-                np.array(obs[dqn_agent]).transpose(2, 0, 1),
-                np.array(real_next_obs).transpose(2, 0, 1),
-                np.array([actions[dqn_agent]]),  # Ensure actions are in array format
-                np.array([rewards[dqn_agent]]),  # Ensure rewards are in array format
-                np.array([terminations[dqn_agent]]),  # Ensure terminations are in array format
+                np.array(obs[dqn_agent]).transpose(2, 0, 1)[None, :4, :, :],
+                np.array(real_next_obs).transpose(2, 0, 1)[None, :4, :, :],
+                np.array([actions[dqn_agent]]),
+                np.array([rewards[dqn_agent]]),
+                np.array([terminations[dqn_agent]]),
                 infos.get(dqn_agent, {})
             )
 
