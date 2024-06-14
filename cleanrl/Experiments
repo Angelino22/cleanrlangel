@@ -2,6 +2,7 @@ import os
 import random
 import time
 from dataclasses import dataclass
+from collections import deque
 
 import gymnasium as gym
 import numpy as np
@@ -78,8 +79,9 @@ class ClipRewardEnv(gym.RewardWrapper):
 class ColorReductionEnv(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
+        original_shape = env.observation_space.shape
         self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(env.observation_space.shape[0], env.observation_space.shape[1], 1), dtype=np.uint8
+            low=0, high=255, shape=(original_shape[0], original_shape[1], 1), dtype=np.uint8
         )
 
     def observation(self, observation):
@@ -91,12 +93,16 @@ class ResizeObservationEnv(gym.ObservationWrapper):
         super().__init__(env)
         self.x_size = x_size
         self.y_size = y_size
+        original_shape = env.observation_space.shape
         self.observation_space = gym.spaces.Box(
-            low=0, high=255, shape=(x_size, y_size, env.observation_space.shape[-1]), dtype=np.uint8
+            low=0, high=255, shape=(x_size, y_size, original_shape[-1]), dtype=np.uint8
         )
 
     def observation(self, observation):
-        return np.array(observation, dtype=np.uint8).resize((self.x_size, self.y_size, observation.shape[-1]))
+        from PIL import Image
+        observation = Image.fromarray(observation)
+        observation = observation.resize((self.x_size, self.y_size))
+        return np.array(observation)
 
 # Custom wrapper for frame stacking
 class FrameStackEnv(gym.Wrapper):
