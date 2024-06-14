@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     rb = ReplayBuffer(
         args.buffer_size,
-        envs.observation_space(dqn_agent),
+        (4, 84, 84),  # Correct observation shape
         envs.action_space(dqn_agent),
         device,
         optimize_memory_usage=True,
@@ -184,19 +184,18 @@ if __name__ == "__main__":
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
-        for agent in agent_ids:
-            if agent == dqn_agent:
-                real_next_obs = next_obs[agent].copy()
-                if truncations[agent]:
-                    real_next_obs = infos[agent].get("final_observation", real_next_obs)
-                rb.add(
-                    obs[agent].transpose(2, 0, 1),
-                    real_next_obs.transpose(2, 0, 1),
-                    actions[agent],
-                    rewards[agent],
-                    terminations[agent],
-                    infos.get(agent, {})
-                )
+        if dqn_agent in rewards:
+            real_next_obs = next_obs[dqn_agent].copy()
+            if truncations[dqn_agent]:
+                real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
+            rb.add(
+                obs[dqn_agent].transpose(2, 0, 1),
+                real_next_obs.transpose(2, 0, 1),
+                actions[dqn_agent],
+                rewards[dqn_agent],
+                terminations[dqn_agent],
+                infos.get(dqn_agent, {})
+            )
 
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
