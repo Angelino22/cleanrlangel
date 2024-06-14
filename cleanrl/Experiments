@@ -13,13 +13,6 @@ import torch.optim as optim
 import tyro
 import supersuit as ss
 from pettingzoo.atari import foozpong_v3
-from stable_baselines3.common.atari_wrappers import (
-    ClipRewardEnv,
-    EpisodicLifeEnv,
-    FireResetEnv,
-    MaxAndSkipEnv,
-    NoopResetEnv,
-)
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 
@@ -88,7 +81,7 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
         env = ss.color_reduction_v0(env, mode="B")
         env = ss.resize_v1(env, x_size=84, y_size=84)
-        env = ss.frame_stack_v1(env, 4)
+        env = ss.frame_stack_v1(env, 4)  # Ensure the number of frames stacked is 4
         env = ss.agent_indicator_v0(env, type_only=False)
         # Commented out the video recording line
         # if capture_video:
@@ -101,7 +94,7 @@ class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
         self.network = nn.Sequential(
-            nn.Conv2d(4, 32, 8, stride=4),
+            nn.Conv2d(4, 32, 8, stride=4),  # Input channels should match the number of stacked frames
             nn.ReLU(),
             nn.Conv2d(32, 64, 4, stride=2),
             nn.ReLU(),
@@ -190,18 +183,19 @@ if __name__ == "__main__":
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
-        if dqn_agent in rewards:
-            real_next_obs = next_obs[dqn_agent].copy()
-            if truncations[dqn_agent]:
-                real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
-            rb.add(
-                obs[dqn_agent],
-                real_next_obs,
-                actions[dqn_agent],
-                rewards[dqn_agent],
-                terminations[dqn_agent],
-                infos.get(dqn_agent, {})
-            )
+        for agent in agent_ids:
+            if agent == dqn_agent:
+                real_next_obs = next_obs[agent].copy()
+                if truncations[agent]:
+                    real_next_obs = infos[agent].get("final_observation", real_next_obs)
+                rb.add(
+                    obs[agent],
+                    real_next_obs,
+                    actions[agent],
+                    rewards[agent],
+                    terminations[agent],
+                    infos.get(agent, {})
+                )
 
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
@@ -212,10 +206,10 @@ if __name__ == "__main__":
                 if len(rb) >= args.batch_size:
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        next_obs_tensor = data.next_observations.permute(0, 3, 1, 2)
+                        next_obs_tensor = data.next_observations.permute(0, 3, 1, 2).to(device)
                         target_max, _ = target_network(next_obs_tensor).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    obs_tensor = data.observations.permute(0, 3, 1, 2)
+                    obs_tensor = data.observations.permute(0, 3, 1, 2).to(device)
                     old_val = q_network(obs_tensor).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
