@@ -195,10 +195,9 @@ for agent in agent_ids:
 
 # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
 # TRY NOT TO MODIFY: start the game
-# TRY NOT TO MODIFY: start the game
 obs = envs.reset(seed=args.seed)  # Set seed during reset
 
-# Debug print to check the structure of `obs`
+# Early debug print to check the structure of `obs`
 print(f"Initial obs type: {type(obs)}, content: {obs}")
 
 for global_step in range(args.total_timesteps):
@@ -209,16 +208,11 @@ for global_step in range(args.total_timesteps):
         if random.random() < epsilon:
             actions[agent] = envs.action_space(agent).sample()
         else:
-            # Debug print to check the structure of `obs[agent]`
-            print(f"obs[{agent}] type: {type(obs)}, content: {obs}")
             q_values = q_networks[agent](torch.Tensor(obs[agent]).unsqueeze(0).to(device))
             actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
     # TRY NOT TO MODIFY: execute the game and log data.
     next_obs, rewards, terminations, truncations, infos = envs.step(actions)
-
-    # Debug print to check the structure of `next_obs`
-    print(f"Next obs type: {type(next_obs)}, content: {next_obs}")
 
     # TRY NOT TO MODIFY: record rewards for plotting purposes
     for agent in agent_ids:
@@ -268,7 +262,6 @@ for global_step in range(args.total_timesteps):
                         target_network_param.data.copy_(
                             args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
                         )
-
 
 
 if args.save_model:
