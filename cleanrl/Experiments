@@ -75,8 +75,7 @@ class Args:
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
-        render_mode = "rgb_array" if capture_video else None
-        env = foozpong_v3.parallel_env(render_mode=render_mode)
+        env = foozpong_v3.parallel_env()
         env = ss.max_observation_v0(env, 2)
         env = ss.frame_skip_v0(env, 4)
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
@@ -84,12 +83,11 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.resize_v1(env, x_size=84, y_size=84)
         env = ss.frame_stack_v1(env, 4)
         env = ss.agent_indicator_v0(env, type_only=False)
-        if capture_video:
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}", episode_trigger=lambda episode_id: True)
+        # Commented out the video recording line
+        # if capture_video:
+        #     env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         return env
-
     return thunk
-
 
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
