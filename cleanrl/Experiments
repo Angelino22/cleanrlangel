@@ -170,7 +170,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs, _ = envs.reset(seed=args.seed)  # Set seed during reset
+    obs = envs.reset(seed=args.seed)  # Set seed during reset
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         actions = {}
@@ -180,7 +180,8 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    q_values = q_network(torch.Tensor(obs[agent]).unsqueeze(0).to(device))
+                    obs_tensor = torch.Tensor(obs[agent]).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             else:
                 actions[agent] = envs.action_space(agent).sample()
@@ -211,9 +212,11 @@ if __name__ == "__main__":
                 if len(rb) >= args.batch_size:
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        target_max, _ = target_network(data.next_observations).max(dim=1)
+                        next_obs_tensor = data.next_observations.permute(0, 3, 1, 2)
+                        target_max, _ = target_network(next_obs_tensor).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    old_val = q_network(data.observations).gather(1, data.actions).squeeze()
+                    obs_tensor = data.observations.permute(0, 3, 1, 2)
+                    old_val = q_network(obs_tensor).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
