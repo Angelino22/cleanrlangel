@@ -154,8 +154,8 @@ if __name__ == "__main__":
     agent_ids = envs.possible_agents
     q_networks = QNetwork(envs).to(device)
     target_networks = QNetwork(envs).to(device)
-    optimizers = optim.Adam(q_network.parameters(), lr=args.learning_rate)
-    target_networks[agent].load_state_dict(q_networks[agent].state_dict())
+    optimizers = optim.Adam(q_networks.parameters(), lr=args.learning_rate)
+    target_networks.load_state_dict(q_networks.state_dict())
 
     rb = {agent: ReplayBuffer(
         args.buffer_size,
