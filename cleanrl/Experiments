@@ -176,18 +176,25 @@ for global_step in range(args.total_timesteps):
             actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
     # TRY NOT TO MODIFY: execute the game and log data.
-    next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
-    # TRY NOT TO MODIFY: record rewards for plotting purposes
-    for agent in agent_ids:
-        if agent in rewards:
-            real_next_obs = next_obs[agent].copy()
-            if truncations[agent]:
-                real_next_obs = infos[agent]["final_observation"]
-            rb[agent].add(obs[agent], real_next_obs, actions[agent], rewards[agent], terminations[agent], infos[agent])
+# TRY NOT TO MODIFY: record rewards for plotting purposes
+for agent in agent_ids:
+    if agent in rewards:
+        real_next_obs = next_obs[agent].copy()
+        if truncations[agent]:
+            real_next_obs = infos[agent].get("final_observation", real_next_obs)
+        rb[agent].add(
+            obs[agent],
+            real_next_obs,
+            actions[agent],
+            rewards[agent],
+            terminations[agent],
+            infos.get(agent, {})
+        )
 
-    # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
-    obs = next_obs
+# TRY NOT TO MODIFY: CRUCIAL step easy to overlook
+obs = next_obs
 
     # ALGO LOGIC: training.
     if global_step > args.learning_starts:
