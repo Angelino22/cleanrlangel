@@ -168,7 +168,7 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             else:
@@ -180,11 +180,9 @@ if __name__ == "__main__":
             real_next_obs = next_obs[dqn_agent].copy()
             if truncations[dqn_agent]:
                 real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
-            print(f"obs[dqn_agent] shape: {np.array(obs[dqn_agent]).shape}")
-            print(f"real_next_obs shape: {np.array(real_next_obs).shape}")
             rb.add(
-                np.array(obs[dqn_agent]).transpose(2, 0, 1)[None, :4, :, :],
-                np.array(real_next_obs).transpose(2, 0, 1)[None, :4, :, :],
+                np.array(obs[dqn_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array(real_next_obs[:, :, :4]).transpose(2, 0, 1),
                 np.array([actions[dqn_agent]]),
                 np.array([rewards[dqn_agent]]),
                 np.array([terminations[dqn_agent]]),
