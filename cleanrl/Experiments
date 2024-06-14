@@ -13,6 +13,7 @@ import tyro
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from pettingzoo.atari import foozpong_v3
+import supersuit as ss
 import wandb
 
 @dataclass
