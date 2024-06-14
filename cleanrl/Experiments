@@ -190,8 +190,8 @@ if __name__ == "__main__":
                 if truncations[agent]:
                     real_next_obs = infos[agent].get("final_observation", real_next_obs)
                 rb.add(
-                    obs[agent],
-                    real_next_obs,
+                    torch.tensor(obs[agent], dtype=torch.float32).permute(2, 0, 1),
+                    torch.tensor(real_next_obs, dtype=torch.float32).permute(2, 0, 1),
                     actions[agent],
                     rewards[agent],
                     terminations[agent],
@@ -207,10 +207,10 @@ if __name__ == "__main__":
                 if len(rb) >= args.batch_size:
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).permute(0, 3, 1, 2).to(device)
+                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device)
                         target_max, _ = target_network(next_obs_tensor).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).to(device)
                     old_val = q_network(obs_tensor).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
