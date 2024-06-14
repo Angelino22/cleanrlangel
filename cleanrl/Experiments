@@ -183,9 +183,9 @@ if __name__ == "__main__":
             rb.add(
                 np.array(obs[dqn_agent]).transpose(2, 0, 1),
                 np.array(real_next_obs).transpose(2, 0, 1),
-                actions[dqn_agent],
-                rewards[dqn_agent],
-                terminations[dqn_agent],
+                np.array([actions[dqn_agent]]),  # Ensure actions are in array format
+                np.array([rewards[dqn_agent]]),  # Ensure rewards are in array format
+                np.array([terminations[dqn_agent]]),  # Ensure terminations are in array format
                 infos.get(dqn_agent, {})
             )
 
