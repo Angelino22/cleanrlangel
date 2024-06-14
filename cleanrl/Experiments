@@ -111,7 +111,7 @@ def stochastic_policy(env, agent):
     action_space = env.action_space(agent)
     if random.random() < 0.8:
         # Always shoot at the enemy goal
-        return 0  # Assuming 0 is the action for shooting at the enemy goal
+        return 1  # Assuming 0 is the action for shooting at the enemy goal
     else:
         return action_space.sample()
 
