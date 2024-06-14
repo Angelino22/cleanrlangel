@@ -151,9 +151,11 @@ if __name__ == "__main__":
     optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
     target_network.load_state_dict(q_network.state_dict())
 
+    # Define observation space based on the game's observation shape
+    observation_space = gym.spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)
     rb = ReplayBuffer(
         args.buffer_size,
-        (4, 84, 84),  # Correct observation shape
+        observation_space,
         envs.action_space(dqn_agent),
         device,
         optimize_memory_usage=True,
@@ -163,7 +165,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs, _ = envs.reset(seed=args.seed)  # Set seed during reset
+    obs,_ = envs.reset(seed=args.seed)  # Set seed during reset
 
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
@@ -206,10 +208,10 @@ if __name__ == "__main__":
                 if len(rb) >= args.batch_size:
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
-                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device)
+                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device).permute(0, 2, 3, 1)
                         target_max, _ = target_network(next_obs_tensor).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
-                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).to(device)
+                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).to(device).permute(0, 2, 3, 1)
                     old_val = q_network(obs_tensor).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
