@@ -166,7 +166,7 @@ if __name__ == "__main__":
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    goals_scored = 0
+    goals_scored = np.zeros(len(agent_ids))  # Track goals scored by each agent
     total_goals = 0
 
     for global_step in range(args.total_timesteps):
@@ -213,7 +213,7 @@ if __name__ == "__main__":
                 infos.get(offense_agent, {})
             )
             if rewards[offense_agent] == 1:  # Assuming reward of 1 indicates a goal
-                goals_scored += 1
+                goals_scored[agent_ids.index(offense_agent)] += 1
             total_goals += rewards[offense_agent]
 
         obs = next_obs
@@ -246,7 +246,8 @@ if __name__ == "__main__":
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                                 "charts/episodic_length": global_step - episode_length,
-                                "charts/goals_scored": goals_scored,
+                                "charts/goals_scored0": goals_scored[0],
+                                "charts/goals_scored1": goals_scored[1],
                                 "charts/total_goals": total_goals,
                                 "global_step": global_step
                             })
@@ -270,14 +271,15 @@ if __name__ == "__main__":
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                     "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                     "charts/episodic_length": global_step - episode_length,
-                    "charts/goals_scored": goals_scored,
+                    "charts/goals_scored0": goals_scored[0],
+                    "charts/goals_scored1": goals_scored[1],
                     "charts/total_goals": total_goals,
                     "global_step": global_step
                 })
             episode_length = global_step
             episode_reward = np.zeros(len(agent_ids))
             adjusted_episode_reward = np.zeros(len(agent_ids))
-            goals_scored = 0
+            goals_scored = np.zeros(len(agent_ids))
             total_goals = 0
 
         obs = next_obs
