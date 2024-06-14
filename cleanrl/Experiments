@@ -107,6 +107,14 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
     slope = (end_e - start_e) / duration
     return max(slope * t + start_e, end_e)
 
+def stochastic_policy(env, agent):
+    action_space = env.action_space(agent)
+    if random.random() < 0.8:
+        # Always shoot at the enemy goal
+        return 0  # Assuming 0 is the action for shooting at the enemy goal
+    else:
+        return action_space.sample()
+
 if __name__ == "__main__":
     args = tyro.cli(Args)
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
@@ -135,7 +143,8 @@ if __name__ == "__main__":
 
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
     agent_ids = envs.possible_agents
-    dqn_agent = agent_ids[0]
+    offense_agent = agent_ids[0]
+    defense_agent = agent_ids[1]
     q_network = QNetwork(envs).to(device)
     target_network = QNetwork(envs).to(device)
     optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
@@ -145,7 +154,7 @@ if __name__ == "__main__":
     rb = ReplayBuffer(
         args.buffer_size,
         observation_space,
-        envs.action_space(dqn_agent),
+        envs.action_space(offense_agent),
         device,
         optimize_memory_usage=True,
         handle_timeout_termination=False,
@@ -164,7 +173,7 @@ if __name__ == "__main__":
         print(f"Global step: {global_step}")  # Debugging print
         actions = {}
         for agent in agent_ids:
-            if agent == dqn_agent and agent in obs:
+            if agent == offense_agent and agent in obs:
                 epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
@@ -172,8 +181,17 @@ if __name__ == "__main__":
                     obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
+            elif agent == defense_agent and agent in obs:
+                actions[agent] = stochastic_policy(envs, agent)
             elif agent in obs:
-                actions[agent] = envs.action_space(agent).sample()
+                # For enemy DQN agents
+                epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+                if random.random() < epsilon:
+                    actions[agent] = envs.action_space(agent).sample()
+                else:
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    q_values = q_network(obs_tensor)
+                    actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
@@ -182,21 +200,21 @@ if __name__ == "__main__":
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
 
-        if dqn_agent in rewards:
-            real_next_obs = next_obs[dqn_agent].copy()
-            if truncations[dqn_agent]:
-                real_next_obs = infos[dqn_agent].get("final_observation", real_next_obs)
+        if offense_agent in rewards:
+            real_next_obs = next_obs[offense_agent].copy()
+            if truncations[offense_agent]:
+                real_next_obs = infos[offense_agent].get("final_observation", real_next_obs)
             rb.add(
-                np.array(obs[dqn_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
                 np.array(real_next_obs[:, :, :4]).transpose(2, 0, 1),
-                np.array([actions[dqn_agent]]),
-                np.array([rewards[dqn_agent]]),
-                np.array([terminations[dqn_agent]]),
-                infos.get(dqn_agent, {})
+                np.array([actions[offense_agent]]),
+                np.array([rewards[offense_agent]]),
+                np.array([terminations[offense_agent]]),
+                infos.get(offense_agent, {})
             )
-            if rewards[dqn_agent] == 1:  # Assuming reward of 1 indicates a goal
+            if rewards[offense_agent] == 1:  # Assuming reward of 1 indicates a goal
                 goals_scored += 1
-            total_goals += rewards[dqn_agent]
+            total_goals += rewards[offense_agent]
 
         obs = next_obs
 
@@ -213,16 +231,15 @@ if __name__ == "__main__":
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
-                        writer.add_scalar(f"losses/td_loss_{dqn_agent}", loss, global_step)
-                        writer.add_scalar(f"losses/q_values_{dqn_agent}", old_val.mean().item(), global_step)
+                        writer.add_scalar(f"losses/td_loss_{offense_agent}", loss, global_step)
+                        writer.add_scalar(f"losses/q_values_{offense_agent}", old_val.mean().item(), global_step)
                         print("SPS:", int(global_step / (time.time() - start_time)))
                         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-                        # Log to wandb
                         if args.track:
                             wandb.log({
-                                f"losses/td_loss_{dqn_agent}": loss.item(),
-                                f"losses/q_values_{dqn_agent}": old_val.mean().item(),
+                                f"losses/td_loss_{offense_agent}": loss.item(),
+                                f"losses/q_values_{offense_agent}": old_val.mean().item(),
                                 "charts/SPS": int(global_step / (time.time() - start_time)),
                                 "charts/episodic_return0": episode_reward[0],
                                 "charts/episodic_return1": episode_reward[1],
@@ -266,7 +283,7 @@ if __name__ == "__main__":
         obs = next_obs
 
     if args.save_model:
-        model_path = f"runs/{run_name}/{args.exp_name}_{dqn_agent}.cleanrl_model"
+        model_path = f"runs/{run_name}/{args.exp_name}_{offense_agent}.cleanrl_model"
         torch.save(q_network.state_dict(), model_path)
         print(f"model saved to {model_path}")
 
