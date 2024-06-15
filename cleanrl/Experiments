@@ -110,8 +110,8 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 def stochastic_policy(env, agent):
     action_space = env.action_space(agent)
     if random.random() < 0.8:
-        # Always shoot at the enemy goal
-        return 1  # Assuming 0 is the action for shooting at the enemy goal
+        # Shoot at the enemy goal
+        return 1  
     else:
         return action_space.sample()
 
@@ -269,6 +269,8 @@ if __name__ == "__main__":
             print(f"Episodic return: {episode_reward}, Length: {global_step - episode_length}")
             if args.track:
                 wandb.log({
+                    f"losses/td_loss_{offense_agent}": loss.item(),
+                    f"losses/q_values_{offense_agent}": old_val.mean().item(),
                     "charts/episodic_return0": episode_reward[0],
                     "charts/episodic_return1": episode_reward[1],
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
@@ -276,6 +278,9 @@ if __name__ == "__main__":
                     "charts/episodic_length": global_step - episode_length,
                     "charts/goals_scored0": goals_scored[0],
                     "charts/goals_scored1": goals_scored[1],
+                    "charts/learning_rate": args.learning_rate,
+                    "charts/min_epsilon": args.end_e,
+                    "charts/epsilon_decay": args.exploration_fraction,
                     "charts/total_goals": total_goals,
                     "global_step": global_step
                 })
