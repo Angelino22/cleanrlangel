@@ -298,7 +298,6 @@ if __name__ == "__main__":
             adjusted_episode_reward = np.zeros(len(agent_ids))
             goals_scored = np.zeros(len(agent_ids))
 
-        global_step += 1
         obs = next_obs
 
     if args.save_model:
