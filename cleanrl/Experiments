@@ -50,7 +50,7 @@ class Args:
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    buffer_size: int = 1000000
+    buffer_size: int = 100000  # Reduced buffer size
     """the replay memory buffer size"""
     gamma: float = 0.99
     """the discount factor gamma"""
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
     target_network.load_state_dict(q_network.state_dict())
 
-    observation_space = gym.spaces.Box(low=0, high=255, shape=(32, 84, 4, 84), dtype=np.uint8)
+    observation_space = gym.spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)  # Corrected shape
     rb = ReplayBuffer(
         args.buffer_size,
         observation_space,
@@ -289,7 +289,6 @@ if __name__ == "__main__":
             goals_scored = np.zeros(len(agent_ids))
             total_goals = 0
 
-        global_step +=1
         obs = next_obs
 
     if args.save_model:
