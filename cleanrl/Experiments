@@ -178,7 +178,7 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             elif agent == defense_agent and agent in obs:
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
@@ -234,10 +234,10 @@ if __name__ == "__main__":
                     data = rb.sample(args.batch_size)
                     with torch.no_grad():
                         next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device)
-                        target_max, _ = target_network(next_obs_tensor.permute((0, 3, 1, 2))).max(dim=1)
+                        target_max, _ = target_network(next_obs_tensor.permute((0, 1, 2, 3))).max(dim=1)
                         td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
                     obs_tensor = torch.tensor(data.observations, dtype=torch.float32).to(device)
-                    old_val = q_network(obs_tensor.permute((0, 3, 1, 2))).gather(1, data.actions).squeeze()
+                    old_val = q_network(obs_tensor.permute((0, 1, 2, 3))).gather(1, data.actions).squeeze()
                     loss = F.mse_loss(td_target, old_val)
 
                     if global_step % 100 == 0:
@@ -298,6 +298,7 @@ if __name__ == "__main__":
             adjusted_episode_reward = np.zeros(len(agent_ids))
             goals_scored = np.zeros(len(agent_ids))
 
+        global_step += 1
         obs = next_obs
 
     if args.save_model:
