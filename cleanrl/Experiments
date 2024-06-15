@@ -166,7 +166,8 @@ if __name__ == "__main__":
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    goals_scored = np.zeros(len(agent_ids))  # Track goals scored by each agent
+    goals_scored_offense = 0  # Track goals scored by offense agent
+    goals_scored_defense = 0  # Track goals scored by defense agent
     total_goals_teamtrack = 0
     total_goals_teamai = 0
 
@@ -213,12 +214,12 @@ if __name__ == "__main__":
                 infos.get(offense_agent, {})
             )
             if rewards[offense_agent] == 1:  # Assuming reward of 1 indicates a goal
-                goals_scored[agent_ids.index(offense_agent)] += 1
+                goals_scored_offense += 1
                 total_goals_teamtrack += 1
 
         if defense_agent in rewards:
             if rewards[defense_agent] == 1:  # Assuming reward of 1 indicates a goal
-                goals_scored[agent_ids.index(defense_agent)] += 1
+                goals_scored_defense += 1
                 total_goals_teamtrack += 1
 
         for agent in agent_ids:
@@ -256,8 +257,8 @@ if __name__ == "__main__":
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                                 "charts/episodic_length": global_step - episode_length,
-                                "charts/goals_scored_offense": goals_scored[agent_ids.index(offense_agent)],
-                                "charts/goals_scored_defense": goals_scored[agent_ids.index(defense_agent)],
+                                "charts/goals_scored_offense": goals_scored_offense,
+                                "charts/goals_scored_defense": goals_scored_defense,
                                 "charts/total_goals_teamtrack": total_goals_teamtrack,
                                 "charts/total_goals_teamai": total_goals_teamai,
                                 "charts/learning_rate": args.learning_rate,
@@ -284,8 +285,8 @@ if __name__ == "__main__":
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                     "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                     "charts/episodic_length": global_step - episode_length,
-                    "charts/goals_scored_offense": goals_scored[agent_ids.index(offense_agent)],
-                    "charts/goals_scored_defense": goals_scored[agent_ids.index(defense_agent)],
+                    "charts/goals_scored_offense": goals_scored_offense,
+                    "charts/goals_scored_defense": goals_scored_defense,
                     "charts/total_goals_teamtrack": total_goals_teamtrack,
                     "charts/total_goals_teamai": total_goals_teamai,
                     "charts/learning_rate": args.learning_rate,
