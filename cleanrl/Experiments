@@ -296,7 +296,6 @@ if __name__ == "__main__":
             episode_length = global_step
             episode_reward = np.zeros(len(agent_ids))
             adjusted_episode_reward = np.zeros(len(agent_ids))
-            goals_scored = np.zeros(len(agent_ids))
 
         obs = next_obs
 
