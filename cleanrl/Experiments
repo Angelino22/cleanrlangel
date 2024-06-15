@@ -79,7 +79,7 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
         env = ss.color_reduction_v0(env, mode="B")
         env = ss.resize_v1(env, x_size=84, y_size=84)
-        env = ss.frame_stack_v1(env, 4)  # Ensure the number of frames stacked is 4
+        env = ss.frame_stack_v1(env, 4)
         env = ss.agent_indicator_v0(env, type_only=False)
         return env
     return thunk
@@ -88,7 +88,7 @@ class QNetwork(nn.Module):
     def __init__(self, env):
         super(QNetwork, self).__init__()
         self.network = nn.Sequential(
-            nn.Conv2d(4, 32, 8, stride=4),  # Input channels should match the number of stacked frames
+            nn.Conv2d(4, 32, 8, stride=4)
             nn.ReLU(),
             nn.Conv2d(32, 64, 4, stride=2),
             nn.ReLU(),
@@ -170,7 +170,6 @@ if __name__ == "__main__":
     total_goals = 0
 
     for global_step in range(args.total_timesteps):
-        print(f"Global step: {global_step}")  # Debugging print
         actions = {}
         for agent in agent_ids:
             if agent == offense_agent and agent in obs:
