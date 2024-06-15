@@ -265,7 +265,6 @@ if __name__ == "__main__":
                 )
 
         if infos:
-            print(f"Episodic return: {episode_reward}, Length: {global_step - episode_length}")
             if args.track:
                 wandb.log({
                     "charts/episodic_return0": episode_reward[0],
