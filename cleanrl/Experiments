@@ -88,7 +88,7 @@ class QNetwork(nn.Module):
     def __init__(self, env):
         super(QNetwork, self).__init__()
         self.network = nn.Sequential(
-            nn.Conv2d(4, 32, 8, stride=4)
+            nn.Conv2d(4, 32, 8, stride=4),
             nn.ReLU(),
             nn.Conv2d(32, 64, 4, stride=2),
             nn.ReLU(),
@@ -289,6 +289,7 @@ if __name__ == "__main__":
             goals_scored = np.zeros(len(agent_ids))
             total_goals = 0
 
+        global_step +=1
         obs = next_obs
 
     if args.save_model:
