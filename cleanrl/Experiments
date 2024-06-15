@@ -79,7 +79,7 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
         env = ss.color_reduction_v0(env, mode="B")
         env = ss.resize_v1(env, x_size=84, y_size=84)
-        env = ss.frame_stack_v1(env, 4)
+        env = ss.frame_stack_v1(env, 4)  # Ensure the number of frames stacked is 4
         env = ss.agent_indicator_v0(env, type_only=False)
         return env
     return thunk
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
     target_network.load_state_dict(q_network.state_dict())
 
-    observation_space = gym.spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)  # Corrected shape
+    observation_space = gym.spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)
     rb = ReplayBuffer(
         args.buffer_size,
         observation_space,
@@ -167,7 +167,8 @@ if __name__ == "__main__":
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
     goals_scored = np.zeros(len(agent_ids))  # Track goals scored by each agent
-    total_goals = 0
+    total_goals_teamtrack = 0
+    total_goals_teamai = 0
 
     for global_step in range(args.total_timesteps):
         actions = {}
@@ -213,7 +214,17 @@ if __name__ == "__main__":
             )
             if rewards[offense_agent] == 1:  # Assuming reward of 1 indicates a goal
                 goals_scored[agent_ids.index(offense_agent)] += 1
-            total_goals += rewards[offense_agent]
+                total_goals_teamtrack += 1
+
+        if defense_agent in rewards:
+            if rewards[defense_agent] == 1:  # Assuming reward of 1 indicates a goal
+                goals_scored[agent_ids.index(defense_agent)] += 1
+                total_goals_teamtrack += 1
+
+        for agent in agent_ids:
+            if agent not in [offense_agent, defense_agent] and agent in rewards:
+                if rewards[agent] == 1:  # Assuming reward of 1 indicates a goal
+                    total_goals_teamai += 1
 
         obs = next_obs
 
@@ -245,9 +256,10 @@ if __name__ == "__main__":
                                 "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                                 "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                                 "charts/episodic_length": global_step - episode_length,
-                                "charts/goals_scored0": goals_scored[0],
-                                "charts/goals_scored1": goals_scored[1],
-                                "charts/total_goals": total_goals,
+                                "charts/goals_scored_offense": goals_scored[agent_ids.index(offense_agent)],
+                                "charts/goals_scored_defense": goals_scored[agent_ids.index(defense_agent)],
+                                "charts/total_goals_teamtrack": total_goals_teamtrack,
+                                "charts/total_goals_teamai": total_goals_teamai,
                                 "charts/learning_rate": args.learning_rate,
                                 "charts/min_epsilon": args.end_e,
                                 "charts/epsilon_decay": args.exploration_fraction,
@@ -272,12 +284,13 @@ if __name__ == "__main__":
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                     "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
                     "charts/episodic_length": global_step - episode_length,
-                    "charts/goals_scored0": goals_scored[0],
-                    "charts/goals_scored1": goals_scored[1],
+                    "charts/goals_scored_offense": goals_scored[agent_ids.index(offense_agent)],
+                    "charts/goals_scored_defense": goals_scored[agent_ids.index(defense_agent)],
+                    "charts/total_goals_teamtrack": total_goals_teamtrack,
+                    "charts/total_goals_teamai": total_goals_teamai,
                     "charts/learning_rate": args.learning_rate,
                     "charts/min_epsilon": args.end_e,
                     "charts/epsilon_decay": args.exploration_fraction,
-                    "charts/total_goals": total_goals,
                     "global_step": global_step
                 })
             episode_length = global_step
