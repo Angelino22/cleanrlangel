@@ -178,7 +178,7 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             elif agent == defense_agent and agent in obs:
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(obs[agent], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
