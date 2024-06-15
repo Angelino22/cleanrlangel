@@ -268,8 +268,6 @@ if __name__ == "__main__":
             print(f"Episodic return: {episode_reward}, Length: {global_step - episode_length}")
             if args.track:
                 wandb.log({
-                    f"losses/td_loss_{offense_agent}": loss.item(),
-                    f"losses/q_values_{offense_agent}": old_val.mean().item(),
                     "charts/episodic_return0": episode_reward[0],
                     "charts/episodic_return1": episode_reward[1],
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
