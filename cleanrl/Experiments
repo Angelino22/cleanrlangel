@@ -32,7 +32,7 @@ class Args:
     """the wandb's project name"""
     wandb_entity: str = None
     """the entity (team) of wandb's project"""
-    capture_video: bool = False
+    capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
     save_model: bool = False
     """whether to save model into the `runs/{run_name}` folder"""
@@ -79,8 +79,10 @@ def make_env(env_id, seed, capture_video, run_name):
         env = ss.clip_reward_v0(env, lower_bound=-1, upper_bound=1)
         env = ss.color_reduction_v0(env, mode="B")
         env = ss.resize_v1(env, x_size=84, y_size=84)
-        env = ss.frame_stack_v1(env, 4)  # Ensure the number of frames stacked is 4
+        env = ss.frame_stack_v1(env, 4)
         env = ss.agent_indicator_v0(env, type_only=False)
+        if args.capture_video:
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         return env
     return thunk
 
@@ -213,18 +215,18 @@ if __name__ == "__main__":
                 np.array([terminations[offense_agent]]),
                 infos.get(offense_agent, {})
             )
-            if rewards[offense_agent] == 1:  # Assuming reward of 1 indicates a goal
+            if rewards[offense_agent] == 1:
                 goals_scored_offense += 1
                 total_goals_teamtrack += 1
 
         if defense_agent in rewards:
-            if rewards[defense_agent] == 1:  # Assuming reward of 1 indicates a goal
+            if rewards[defense_agent] == 1:
                 goals_scored_defense += 1
                 total_goals_teamtrack += 1
 
         for agent in agent_ids:
             if agent not in [offense_agent, defense_agent] and agent in rewards:
-                if rewards[agent] == 1:  # Assuming reward of 1 indicates a goal
+                if rewards[agent] == 1:  
                     total_goals_teamai += 1
 
         obs = next_obs
