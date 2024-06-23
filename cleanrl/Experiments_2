@@ -117,35 +117,36 @@ def stochastic_policy(env, agent):
     else:
         return action_space.sample()
 
-def get_defense_position(env, defense_agent):
-    # Placeholder function to get defense agent's position
-    # Replace with actual method to get position from the environment
-    return np.array([0, 0])
+def measure_cooperative_effectiveness(env, actions, rewards):
+    cooperative_metrics = {
+        'shared_goals': 0,
+        'team_coordination': 0,
+        'assists': 0,
+        'communication_efficiency': 0,
+        'survival_rate': 0
+    }
 
-def get_defense_velocity(env, defense_agent):
-    # Placeholder function to get defense agent's velocity
-    # Replace with actual method to get velocity from the environment
-    return np.array([0, 0])
+    # Measure shared goals
+    if rewards[offense_agent] == 1:
+        cooperative_metrics['shared_goals'] += 1
 
-def get_defense_action_history(env, defense_agent):
-    # Placeholder function to get defense agent's action history
-    # Replace with actual method to get action history from the environment
-    return np.array([0, 0, 0, 0])
+    # Measure team coordination
+    if actions[defense_agent] == 1 and rewards[offense_agent] == 1:
+        cooperative_metrics['team_coordination'] += 1
 
-def augment_offense_observation(obs, env, offense_agent, defense_agent):
-    defense_position = get_defense_position(env, defense_agent)
-    defense_velocity = get_defense_velocity(env, defense_agent)
-    defense_action_history = get_defense_action_history(env, defense_agent)
+    # Measure assists (dummy logic, replace with actual game-specific logic)
+    if actions[defense_agent] == 2 and rewards[offense_agent] == 1:
+        cooperative_metrics['assists'] += 1
 
-    # Combine all the defense information into a single array
-    defense_info = np.concatenate((defense_position, defense_velocity, defense_action_history), axis=0)
+    # Measure communication efficiency
+    if actions[offense_agent] == 1 and rewards[defense_agent] == 1:
+        cooperative_metrics['communication_efficiency'] += 1
 
-    # Repeat the defense_info to match the dimensions of the observation
-    defense_info_repeated = np.tile(defense_info, (obs[offense_agent].shape[0], obs[offense_agent].shape[1], 1))
+    # Measure survival rate (dummy logic, replace with actual game-specific logic)
+    if not rewards[offense_agent] == -1:
+        cooperative_metrics['survival_rate'] += 1
 
-    # Concatenate the defense info to the offense agent's observation
-    augmented_obs = np.concatenate((obs[offense_agent], defense_info_repeated), axis=-1)
-    return augmented_obs
+    return cooperative_metrics
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
@@ -192,13 +193,14 @@ if __name__ == "__main__":
         handle_timeout_termination=False,
     )
 
+    # Initialization
     start_time = time.time()
     obs, _ = envs.reset(seed=args.seed)
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    goals_scored_offense = 0
-    goals_scored_defense = 0
+    goals_scored_offense = 0  # Track goals scored by offense agent
+    goals_scored_defense = 0  # Track goals scored by defense agent
     total_goals_teamtrack = 0
     total_goals_teamai = 0
 
@@ -206,19 +208,19 @@ if __name__ == "__main__":
         actions = {}
         for agent in agent_ids:
             if agent == offense_agent and agent in obs:
-                # Augment offense agent's observation with defense agent's information
-                augmented_obs = augment_offense_observation(obs, envs, offense_agent, defense_agent)
-
+                # Offense agent (teammate of stochastic agent) uses epsilon-greedy policy
                 epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
                 else:
-                    obs_tensor = torch.tensor(augmented_obs[:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
                     q_values = q_network(obs_tensor)
                     actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             elif agent == defense_agent and agent in obs:
-                actions[agent] = get_defense_agent_action(envs, agent, global_step)
+                # Defense agent (stochastic agent) uses its own stochastic policy
+                actions[agent] = stochastic_policy(envs, agent)
             elif agent in obs:
+                # Enemy DQN agents use epsilon-greedy policy
                 epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
                 if random.random() < epsilon:
                     actions[agent] = envs.action_space(agent).sample()
@@ -259,6 +261,10 @@ if __name__ == "__main__":
             if agent not in [offense_agent, defense_agent] and agent in rewards:
                 if rewards[agent] == 1:  
                     total_goals_teamai += 1
+
+        cooperative_effectiveness = measure_cooperative_effectiveness(envs, actions, rewards)
+        if args.track:
+            wandb.log(cooperative_effectiveness)
 
         obs = next_obs
 
