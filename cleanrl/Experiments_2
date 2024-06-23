@@ -138,10 +138,13 @@ def augment_offense_observation(obs, env, offense_agent, defense_agent):
     defense_action_history = get_defense_action_history(env, defense_agent)
 
     # Combine all the defense information into a single array
-    defense_info = np.concatenate((defense_position, defense_velocity, defense_action_history), axis=-1)
+    defense_info = np.concatenate((defense_position, defense_velocity, defense_action_history), axis=0)
+
+    # Repeat the defense_info to match the dimensions of the observation
+    defense_info_repeated = np.tile(defense_info, (obs[offense_agent].shape[0], obs[offense_agent].shape[1], 1))
 
     # Concatenate the defense info to the offense agent's observation
-    augmented_obs = np.concatenate((obs[offense_agent], defense_info), axis=-1)
+    augmented_obs = np.concatenate((obs[offense_agent], defense_info_repeated), axis=-1)
     return augmented_obs
 
 if __name__ == "__main__":
