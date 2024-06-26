@@ -236,24 +236,32 @@ if __name__ == "__main__":
 
         # Track goals for individual agents
         if offense_agent in rewards and rewards[offense_agent] == 1:
-            goals_scored_offense += 1
-            total_goals_game += 1
-            print(f"Goal scored by offense agent. Total goals scored by offense agent: {goals_scored_offense}")
+            if "goal_offense" not in infos[offense_agent]:
+                goals_scored_offense += 1
+                total_goals_game += 1
+                print(f"Goal scored by offense agent. Total goals scored by offense agent: {goals_scored_offense}")
+                infos[offense_agent]["goal_offense"] = True  # Mark goal scored for this step
 
         if defense_agent in rewards and rewards[defense_agent] == 1:
-            goals_scored_defense += 1
-            total_goals_game += 1
-            print(f"Goal scored by defense agent. Total goals scored by defense agent: {goals_scored_defense}")
+            if "goal_defense" not in infos[defense_agent]:
+                goals_scored_defense += 1
+                total_goals_game += 1
+                print(f"Goal scored by defense agent. Total goals scored by defense agent: {goals_scored_defense}")
+                infos[defense_agent]["goal_defense"] = True  # Mark goal scored for this step
 
         if ai1_agent in rewards and rewards[ai1_agent] == 1:
-            goals_scored_ai1 += 1
-            total_goals_game += 1
-            print(f"Goal scored by ai1 agent. Total goals scored by ai1 agent: {goals_scored_ai1}")
+            if "goal_ai1" not in infos[ai1_agent]:
+                goals_scored_ai1 += 1
+                total_goals_game += 1
+                print(f"Goal scored by ai1 agent. Total goals scored by ai1 agent: {goals_scored_ai1}")
+                infos[ai1_agent]["goal_ai1"] = True  # Mark goal scored for this step
 
         if ai2_agent in rewards and rewards[ai2_agent] == 1:
-            goals_scored_ai2 += 1
-            total_goals_game += 1
-            print(f"Goal scored by ai2 agent. Total goals scored by ai2 agent: {goals_scored_ai2}")
+            if "goal_ai2" not in infos[ai2_agent]:
+                goals_scored_ai2 += 1
+                total_goals_game += 1
+                print(f"Goal scored by ai2 agent. Total goals scored by ai2 agent: {goals_scored_ai2}")
+                infos[ai2_agent]["goal_ai2"] = True  # Mark goal scored for this step
 
         obs = next_obs
 
