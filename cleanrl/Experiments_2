@@ -196,6 +196,8 @@ if __name__ == "__main__":
     goals_scored_defense = 0  # Track goals scored by defense agent
     goals_scored_ai1 = 0  # Track goals scored by ai1 agent
     goals_scored_ai2 = 0  # Track goals scored by ai2 agent
+    total_goals_teamtrack = 0  # Goals by Team Track (offense + defense)
+    total_goals_teamai = 0  # Goals by Team AI (other agents)
     total_goals_game = 0  # Total goals scored in the game
 
     for global_step in range(args.total_timesteps):
@@ -234,30 +236,22 @@ if __name__ == "__main__":
         if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
             shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
-        # Track goals for individual agents
-        if offense_agent in rewards and rewards[offense_agent] == 1 and "goal_offense" not in infos:
-            goals_scored_offense += 1
-            total_goals_game += 1
-            print(f"Goal scored by offense agent. Total goals scored by offense agent: {goals_scored_offense}")
-            infos["goal_offense"] = True  # Mark goal scored for this step
+        # Extract the total goals scored based on rewards
+        total_goals_game = sum(rewards.values())
+        goals_scored_offense += rewards.get(offense_agent, 0)
+        goals_scored_defense += rewards.get(defense_agent, 0)
+        goals_scored_ai1 += rewards.get(ai1_agent, 0)
+        goals_scored_ai2 += rewards.get(ai2_agent, 0)
 
-        if defense_agent in rewards and rewards[defense_agent] == 1 and "goal_defense" not in infos:
-            goals_scored_defense += 1
-            total_goals_game += 1
-            print(f"Goal scored by defense agent. Total goals scored by defense agent: {goals_scored_defense}")
-            infos["goal_defense"] = True  # Mark goal scored for this step
+        # Track goals for Team Track (offense and defense agents)
+        total_goals_teamtrack = goals_scored_offense + goals_scored_defense
+        total_goals_teamai = goals_scored_ai1 + goals_scored_ai2
 
-        if ai1_agent in rewards and rewards[ai1_agent] == 1 and "goal_ai1" not in infos:
-            goals_scored_ai1 += 1
-            total_goals_game += 1
-            print(f"Goal scored by ai1 agent. Total goals scored by ai1 agent: {goals_scored_ai1}")
-            infos["goal_ai1"] = True  # Mark goal scored for this step
-
-        if ai2_agent in rewards and rewards[ai2_agent] == 1 and "goal_ai2" not in infos:
-            goals_scored_ai2 += 1
-            total_goals_game += 1
-            print(f"Goal scored by ai2 agent. Total goals scored by ai2 agent: {goals_scored_ai2}")
-            infos["goal_ai2"] = True  # Mark goal scored for this step
+        print(f"Total goals in game: {total_goals_game}")
+        print(f"Goals scored by offense agent: {goals_scored_offense}")
+        print(f"Goals scored by defense agent: {goals_scored_defense}")
+        print(f"Goals scored by ai1 agent: {goals_scored_ai1}")
+        print(f"Goals scored by ai2 agent: {goals_scored_ai2}")
 
         obs = next_obs
 
@@ -293,6 +287,8 @@ if __name__ == "__main__":
                                 "charts/goals_scored_defense": goals_scored_defense,
                                 "charts/goals_scored_ai1": goals_scored_ai1,
                                 "charts/goals_scored_ai2": goals_scored_ai2,
+                                "charts/total_goals_teamtrack": total_goals_teamtrack,
+                                "charts/total_goals_teamai": total_goals_teamai,
                                 "charts/total_goals_game": total_goals_game,
                                 "charts/learning_rate": args.learning_rate,
                                 "charts/min_epsilon": args.end_e,
@@ -322,6 +318,8 @@ if __name__ == "__main__":
                     "charts/goals_scored_defense": goals_scored_defense,
                     "charts/goals_scored_ai1": goals_scored_ai1,
                     "charts/goals_scored_ai2": goals_scored_ai2,
+                    "charts/total_goals_teamtrack": total_goals_teamtrack,
+                    "charts/total_goals_teamai": total_goals_teamai,
                     "charts/total_goals_game": total_goals_game,
                     "charts/learning_rate": args.learning_rate,
                     "charts/min_epsilon": args.end_e,
@@ -347,3 +345,4 @@ if __name__ == "__main__":
 
     envs.close()
     writer.close()
+
