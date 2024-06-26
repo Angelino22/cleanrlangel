@@ -190,10 +190,11 @@ if __name__ == "__main__":
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    goals_scored_offense = 0  # Track goals scored by offense agent
-    goals_scored_defense = 0  # Track goals scored by defense agent
+    goals_scored_offense = 0  
+    goals_scored_defense = 0  
     total_goals_teamtrack = 0
     total_goals_teamai = 0
+    
 
     for global_step in range(args.total_timesteps):
         actions = {}
@@ -231,16 +232,16 @@ if __name__ == "__main__":
         if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
             shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
-        if offense_agent in rewards:
-            if rewards[offense_agent] == 1:
-                goals_scored_offense += 1
-                total_goals_teamtrack += 1
+# Track goals for Team Track (offense and defense agents)
+        if offense_agent in rewards and rewards[offense_agent] == 1:
+            goals_scored_offense += 1
+            total_goals_teamtrack += 1
 
-        if defense_agent in rewards:
-            if rewards[defense_agent] == 1:
-                goals_scored_defense += 1
-                total_goals_teamtrack += 1
+        if defense_agent in rewards and rewards[defense_agent] == 1:
+            goals_scored_defense += 1
+            total_goals_teamtrack += 1
 
+        # Track goals for Team AI (other agents)
         for agent in agent_ids:
             if agent not in [offense_agent, defense_agent] and agent in rewards:
                 if rewards[agent] == 1:
@@ -280,8 +281,6 @@ if __name__ == "__main__":
                                 "charts/goals_scored_defense": goals_scored_defense,
                                 "charts/total_goals_teamtrack": total_goals_teamtrack,
                                 "charts/total_goals_teamai": total_goals_teamai,
-                                "charts/learning_rate": args.learning_rate,
-                                "charts/min_epsilon": args.end_e,
                                 "charts/epsilon_decay": args.exploration_fraction,
                                 "global_step": global_step
                             })
@@ -309,8 +308,6 @@ if __name__ == "__main__":
                     "charts/total_goals_teamtrack": total_goals_teamtrack,
                     "charts/total_goals_teamai": total_goals_teamai,
                     "charts/learning_rate": args.learning_rate,
-                    "charts/min_epsilon": args.end_e,
-                    "charts/epsilon_decay": args.exploration_fraction,
                     "global_step": global_step
                 })
             episode_length = global_step
