@@ -175,6 +175,8 @@ if __name__ == "__main__":
     agent_ids = envs.possible_agents
     offense_agent = agent_ids[0]
     defense_agent = agent_ids[1]
+    ai1_agent = agent_ids[2]
+    ai2_agent = agent_ids[3]
     q_network = QNetwork(envs).to(device)
     target_network = QNetwork(envs).to(device)
     optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
@@ -192,8 +194,8 @@ if __name__ == "__main__":
     adjusted_episode_reward = np.zeros(len(agent_ids))
     goals_scored_offense = 0  # Track goals scored by offense agent
     goals_scored_defense = 0  # Track goals scored by defense agent
-    total_goals_teamtrack = 0  # Goals by Team Track (offense + defense)
-    total_goals_teamai = 0  # Goals by Team AI (other agents)
+    goals_scored_ai1 = 0  # Track goals scored by ai1 agent
+    goals_scored_ai2 = 0  # Track goals scored by ai2 agent
     total_goals_game = 0  # Total goals scored in the game
 
     for global_step in range(args.total_timesteps):
@@ -232,28 +234,26 @@ if __name__ == "__main__":
         if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
             shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
-        # Track goals for Team Track (offense and defense agents)
+        # Track goals for individual agents
         if offense_agent in rewards and rewards[offense_agent] == 1:
             goals_scored_offense += 1
-            total_goals_teamtrack += 1
             total_goals_game += 1
-            print(f"Goal scored by offense agent. Total goals by Team Track: {total_goals_teamtrack}")
+            print(f"Goal scored by offense agent. Total goals scored by offense agent: {goals_scored_offense}")
 
         if defense_agent in rewards and rewards[defense_agent] == 1:
             goals_scored_defense += 1
-            total_goals_teamtrack += 1
             total_goals_game += 1
-            print(f"Goal scored by defense agent. Total goals by Team Track: {total_goals_teamtrack}")
+            print(f"Goal scored by defense agent. Total goals scored by defense agent: {goals_scored_defense}")
 
-        # Track goals for Team AI (other agents)
-        for agent in agent_ids:
-            if agent not in [offense_agent, defense_agent] and agent in rewards:
-                if rewards[agent] == 1:
-                    total_goals_game += 1
-                    print(f"Goal scored by AI agent. Total goals overall: {total_goals_game}")
+        if ai1_agent in rewards and rewards[ai1_agent] == 1:
+            goals_scored_ai1 += 1
+            total_goals_game += 1
+            print(f"Goal scored by ai1 agent. Total goals scored by ai1 agent: {goals_scored_ai1}")
 
-        # Derive Team AI goals
-        total_goals_teamai = total_goals_game - total_goals_teamtrack
+        if ai2_agent in rewards and rewards[ai2_agent] == 1:
+            goals_scored_ai2 += 1
+            total_goals_game += 1
+            print(f"Goal scored by ai2 agent. Total goals scored by ai2 agent: {goals_scored_ai2}")
 
         obs = next_obs
 
@@ -287,8 +287,8 @@ if __name__ == "__main__":
                                 "charts/episodic_length": global_step - episode_length,
                                 "charts/goals_scored_offense": goals_scored_offense,
                                 "charts/goals_scored_defense": goals_scored_defense,
-                                "charts/total_goals_teamtrack": total_goals_teamtrack,
-                                "charts/total_goals_teamai": total_goals_teamai,
+                                "charts/goals_scored_ai1": goals_scored_ai1,
+                                "charts/goals_scored_ai2": goals_scored_ai2,
                                 "charts/total_goals_game": total_goals_game,
                                 "charts/learning_rate": args.learning_rate,
                                 "charts/min_epsilon": args.end_e,
@@ -316,8 +316,8 @@ if __name__ == "__main__":
                     "charts/episodic_length": global_step - episode_length,
                     "charts/goals_scored_offense": goals_scored_offense,
                     "charts/goals_scored_defense": goals_scored_defense,
-                    "charts/total_goals_teamtrack": total_goals_teamtrack,
-                    "charts/total_goals_teamai": total_goals_teamai,
+                    "charts/goals_scored_ai1": goals_scored_ai1,
+                    "charts/goals_scored_ai2": goals_scored_ai2,
                     "charts/total_goals_game": total_goals_game,
                     "charts/learning_rate": args.learning_rate,
                     "charts/min_epsilon": args.end_e,
