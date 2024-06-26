@@ -123,25 +123,27 @@ class SharedReplayBuffer:
         self.rb_defense = ReplayBuffer(buffer_size, observation_space, action_space, device)
 
     def add(self, obs, next_obs, actions, rewards, terminations, infos):
-        offense_info = infos.get(offense_agent, {})
-        defense_info = infos.get(defense_agent, {})
+        if offense_agent in obs and offense_agent in next_obs and offense_agent in actions and offense_agent in rewards and offense_agent in terminations:
+            offense_info = infos.get(offense_agent, {})
+            self.rb_offense.add(
+                np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array(next_obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array([actions[offense_agent]]),
+                np.array([rewards[offense_agent]]),
+                np.array([terminations[offense_agent]]),
+                [offense_info]
+            )
         
-        self.rb_offense.add(
-            np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
-            np.array(next_obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
-            np.array([actions[offense_agent]]),
-            np.array([rewards[offense_agent]]),
-            np.array([terminations[offense_agent]]),
-            [offense_info]
-        )
-        self.rb_defense.add(
-            np.array(obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
-            np.array(next_obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
-            np.array([actions[defense_agent]]),
-            np.array([rewards[defense_agent]]),
-            np.array([terminations[defense_agent]]),
-            [defense_info]
-        )
+        if defense_agent in obs and defense_agent in next_obs and defense_agent in actions and defense_agent in rewards and defense_agent in terminations:
+            defense_info = infos.get(defense_agent, {})
+            self.rb_defense.add(
+                np.array(obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array(next_obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array([actions[defense_agent]]),
+                np.array([rewards[defense_agent]]),
+                np.array([terminations[defense_agent]]),
+                [defense_info]
+            )
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
