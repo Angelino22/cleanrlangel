@@ -123,13 +123,16 @@ class SharedReplayBuffer:
         self.rb_defense = ReplayBuffer(buffer_size, observation_space, action_space, device)
 
     def add(self, obs, next_obs, actions, rewards, terminations, infos):
+        offense_info = infos.get(offense_agent, {})
+        defense_info = infos.get(defense_agent, {})
+        
         self.rb_offense.add(
             np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
             np.array(next_obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
             np.array([actions[offense_agent]]),
             np.array([rewards[offense_agent]]),
             np.array([terminations[offense_agent]]),
-            infos.get(offense_agent, {})
+            [offense_info]
         )
         self.rb_defense.add(
             np.array(obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
@@ -137,7 +140,7 @@ class SharedReplayBuffer:
             np.array([actions[defense_agent]]),
             np.array([rewards[defense_agent]]),
             np.array([terminations[defense_agent]]),
-            infos.get(defense_agent, {})
+            [defense_info]
         )
 
 if __name__ == "__main__":
@@ -222,6 +225,7 @@ if __name__ == "__main__":
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
 
+        # Ensure infos is properly structured
         shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
         if offense_agent in rewards:
