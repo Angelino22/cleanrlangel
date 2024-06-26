@@ -236,12 +236,12 @@ if __name__ == "__main__":
         if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
             shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
-        # Extract the total goals scored based on rewards
-        total_goals_game = sum(rewards.values())
-        goals_scored_offense += rewards.get(offense_agent, 0)
-        goals_scored_defense += rewards.get(defense_agent, 0)
-        goals_scored_ai1 += rewards.get(ai1_agent, 0)
-        goals_scored_ai2 += rewards.get(ai2_agent, 0)
+        # Extract the total goals scored based on positive rewards
+        total_goals_game += sum(1 for reward in rewards.values() if reward > 0)
+        goals_scored_offense += 1 if rewards.get(offense_agent, 0) > 0 else 0
+        goals_scored_defense += 1 if rewards.get(defense_agent, 0) > 0 else 0
+        goals_scored_ai1 += 1 if rewards.get(ai1_agent, 0) > 0 else 0
+        goals_scored_ai2 += 1 if rewards.get(ai2_agent, 0) > 0 else 0
 
         # Track goals for Team Track (offense and defense agents)
         total_goals_teamtrack = goals_scored_offense + goals_scored_defense
@@ -345,4 +345,5 @@ if __name__ == "__main__":
 
     envs.close()
     writer.close()
+
 
