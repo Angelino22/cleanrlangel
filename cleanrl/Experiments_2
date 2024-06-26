@@ -247,11 +247,7 @@ if __name__ == "__main__":
 
         # Print and log the total score rewards
         total_score_rewards_game = total_score_rewards_teamtrack + total_score_rewards_teamai
-        print(f"Total score rewards in game: {total_score_rewards_game}")
-        print(f"Score rewards by offense agent: {score_rewards_offense}")
-        print(f"Score rewards by defense agent: {score_rewards_defense}")
-        print(f"Score rewards by ai1 agent: {score_rewards_ai1}")
-        print(f"Score rewards by ai2 agent: {score_rewards_ai2}")
+
 
         obs = next_obs
 
