@@ -123,8 +123,10 @@ class SharedReplayBuffer:
         self.rb_defense = ReplayBuffer(buffer_size, observation_space, action_space, device)
 
     def add(self, obs, next_obs, actions, rewards, terminations, infos):
-        if offense_agent in obs and offense_agent in next_obs and offense_agent in actions and offense_agent in rewards and offense_agent in terminations:
+        if all(k in obs and k in next_obs and k in actions and k in rewards and k in terminations for k in [offense_agent, defense_agent]):
             offense_info = infos.get(offense_agent, {})
+            defense_info = infos.get(defense_agent, {})
+            
             self.rb_offense.add(
                 np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
                 np.array(next_obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
@@ -133,9 +135,7 @@ class SharedReplayBuffer:
                 np.array([terminations[offense_agent]]),
                 [offense_info]
             )
-        
-        if defense_agent in obs and defense_agent in next_obs and defense_agent in actions and defense_agent in rewards and defense_agent in terminations:
-            defense_info = infos.get(defense_agent, {})
+            
             self.rb_defense.add(
                 np.array(obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
                 np.array(next_obs[defense_agent][:, :, :4]).transpose(2, 0, 1),
@@ -227,8 +227,9 @@ if __name__ == "__main__":
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
 
-        # Ensure infos is properly structured
-        shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
+        # Ensure keys are present in next_obs and related dictionaries before adding to replay buffer
+        if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
+            shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
 
         if offense_agent in rewards:
             if rewards[offense_agent] == 1:
