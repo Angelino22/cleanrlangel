@@ -291,6 +291,8 @@ if __name__ == "__main__":
                     "charts/goals_scored_defense": goals_scored_defense,
                     "charts/total_goals_teamtrack": total_goals_teamtrack,
                     "charts/total_goals_teamai": total_goals_teamai,
+                    "charts/learning_rate": args.learning_rate,
+                    "charts/min_epsilon": args.end_e,
                     "charts/epsilon_decay": args.exploration_fraction,
                     "global_step": global_step
                 })

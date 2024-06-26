@@ -194,7 +194,7 @@ if __name__ == "__main__":
     goals_scored_defense = 0  # Track goals scored by defense agent
     total_goals_teamtrack = 0  # Goals by Team Track (offense + defense)
     total_goals_teamai = 0  # Goals by Team AI (other agents)
-    total_goals = 0  # Total goals overall
+    total_goals_game = 0  # Total goals scored in the game
 
     for global_step in range(args.total_timesteps):
         actions = {}
@@ -236,24 +236,24 @@ if __name__ == "__main__":
         if offense_agent in rewards and rewards[offense_agent] == 1:
             goals_scored_offense += 1
             total_goals_teamtrack += 1
-            total_goals += 1
+            total_goals_game += 1
             print(f"Goal scored by offense agent. Total goals by Team Track: {total_goals_teamtrack}")
 
         if defense_agent in rewards and rewards[defense_agent] == 1:
             goals_scored_defense += 1
             total_goals_teamtrack += 1
-            total_goals += 1
+            total_goals_game += 1
             print(f"Goal scored by defense agent. Total goals by Team Track: {total_goals_teamtrack}")
 
         # Track goals for Team AI (other agents)
         for agent in agent_ids:
             if agent not in [offense_agent, defense_agent] and agent in rewards:
                 if rewards[agent] == 1:
-                    total_goals += 1
-                    print(f"Goal scored by AI agent. Total goals overall: {total_goals}")
+                    total_goals_game += 1
+                    print(f"Goal scored by AI agent. Total goals overall: {total_goals_game}")
 
         # Derive Team AI goals
-        total_goals_teamai = total_goals - total_goals_teamtrack
+        total_goals_teamai = total_goals_game - total_goals_teamtrack
 
         obs = next_obs
 
@@ -289,7 +289,7 @@ if __name__ == "__main__":
                                 "charts/goals_scored_defense": goals_scored_defense,
                                 "charts/total_goals_teamtrack": total_goals_teamtrack,
                                 "charts/total_goals_teamai": total_goals_teamai,
-                                "charts/total_goals": total_goals,
+                                "charts/total_goals_game": total_goals_game,
                                 "charts/learning_rate": args.learning_rate,
                                 "charts/min_epsilon": args.end_e,
                                 "charts/epsilon_decay": args.exploration_fraction,
@@ -318,6 +318,10 @@ if __name__ == "__main__":
                     "charts/goals_scored_defense": goals_scored_defense,
                     "charts/total_goals_teamtrack": total_goals_teamtrack,
                     "charts/total_goals_teamai": total_goals_teamai,
+                    "charts/total_goals_game": total_goals_game,
+                    "charts/learning_rate": args.learning_rate,
+                    "charts/min_epsilon": args.end_e,
+                    "charts/epsilon_decay": args.exploration_fraction,
                     "global_step": global_step
                 })
             episode_length = global_step
