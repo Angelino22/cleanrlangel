@@ -46,7 +46,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
-    learning_rate: float = 1e-5
+    learning_rate: float = 1e-6
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
@@ -60,9 +60,9 @@ class Args:
     """the timesteps it takes to update the target network"""
     batch_size: int = 32
     """the batch size of sample from the replay memory"""
-    start_e: float = 0.5
+    start_e: float = 0.1
     """the starting epsilon for exploration"""
-    end_e: float = 0.05
+    end_e: float = 0.01
     """the ending epsilon for exploration"""
     exploration_fraction: float = 0.10
     """the fraction of `total-timesteps` it takes from start-e to go end-e"""
@@ -231,7 +231,7 @@ if __name__ == "__main__":
             if agent in rewards:
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
-
+            rewards[agent] = np.clip(rewards[agent], -1, 1)
         # Ensure keys are present in next_obs and related dictionaries before adding to replay buffer
         if all(k in obs for k in [offense_agent, defense_agent]) and all(k in next_obs for k in [offense_agent, defense_agent]):
             shared_rb.add(obs, next_obs, actions, rewards, terminations, infos)
