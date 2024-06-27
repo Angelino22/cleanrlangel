@@ -26,7 +26,7 @@ class Args:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
-    track: bool = True
+    track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
@@ -34,7 +34,7 @@ class Args:
     """the entity (team) of wandb's project"""
     capture_video: bool = True
     """whether to capture videos of the agent performances (check out `videos` folder)"""
-    save_model: bool = True
+    save_model: bool = False
     """whether to save model into the `runs/{run_name}` folder"""
     upload_model: bool = False
     """whether to upload the saved model to huggingface"""
@@ -64,9 +64,9 @@ class Args:
     """the starting epsilon for exploration"""
     end_e: float = 0.01
     """the ending epsilon for exploration"""
-    exploration_fraction: float = 0.2
+    exploration_fraction: float = 0.10
     """the fraction of `total-timesteps` it takes from start-e to go end-e"""
-    learning_starts: int = 50000
+    learning_starts: int = 80000
     """timestep to start learning"""
     train_frequency: int = 4
     """the frequency of training"""
@@ -202,7 +202,6 @@ if __name__ == "__main__":
             if agent in rewards:
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
-            rewards[agent] = np.clip(rewards[agent], -1, 1)
 
         if offense_agent in rewards:
             real_next_obs = next_obs[offense_agent].copy()
@@ -272,7 +271,6 @@ if __name__ == "__main__":
 
                     optimizer.zero_grad()
                     loss.backward()
-                    # nn.utils.clip_grad_norm_(q_network.parameters(), 1.0) 
                     optimizer.step()
 
         if global_step % args.target_network_frequency == 0:
