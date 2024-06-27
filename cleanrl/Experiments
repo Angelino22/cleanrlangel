@@ -60,7 +60,7 @@ class Args:
     """the timesteps it takes to update the target network"""
     batch_size: int = 32
     """the batch size of sample from the replay memory"""
-    start_e: float = 0.1
+    start_e: float = 1
     """the starting epsilon for exploration"""
     end_e: float = 0.01
     """the ending epsilon for exploration"""
