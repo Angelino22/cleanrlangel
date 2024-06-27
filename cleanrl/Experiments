@@ -272,7 +272,7 @@ if __name__ == "__main__":
 
                     optimizer.zero_grad()
                     loss.backward()
-                    nn.utils.clip_grad_norm_(q_network.parameters(), 1.0) 
+                    # nn.utils.clip_grad_norm_(q_network.parameters(), 1.0) 
                     optimizer.step()
 
         if global_step % args.target_network_frequency == 0:
