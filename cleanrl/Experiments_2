@@ -46,7 +46,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-5
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
@@ -60,9 +60,9 @@ class Args:
     """the timesteps it takes to update the target network"""
     batch_size: int = 32
     """the batch size of sample from the replay memory"""
-    start_e: float = 0.1
+    start_e: float = 0.5
     """the starting epsilon for exploration"""
-    end_e: float = 0.01
+    end_e: float = 0.05
     """the ending epsilon for exploration"""
     exploration_fraction: float = 0.10
     """the fraction of `total-timesteps` it takes from start-e to go end-e"""
@@ -294,6 +294,7 @@ if __name__ == "__main__":
 
                     optimizer.zero_grad()
                     loss.backward()
+                    nn.utils.clip_grad_norm_(q_network.parameters(), 1.0)  # Apply gradient clipping
                     optimizer.step()
 
         if global_step % args.target_network_frequency == 0:
