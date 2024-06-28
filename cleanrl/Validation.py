@@ -216,19 +216,6 @@ if __name__ == "__main__":
                 })
 
         if infos:
-            if args.track:
-                wandb.log({
-                    "charts/episodic_return0": episode_reward[0],
-                    "charts/episodic_return1": episode_reward[1],
-                    "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
-                    "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
-                    "charts/episodic_length": global_step - episode_length,
-                    "charts/goals_scored_offense": goals_scored_offense,
-                    "charts/goals_scored_defense": goals_scored_defense,
-                    "charts/total_goals_teamtrack": total_goals_teamtrack,
-                    "charts/total_goals_teamai": total_goals_teamai,
-                    "global_step": global_step
-                })
             episode_length = global_step
             episode_reward = np.zeros(len(agent_ids))
             adjusted_episode_reward = np.zeros(len(agent_ids))
