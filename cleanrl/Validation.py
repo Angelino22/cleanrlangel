@@ -122,7 +122,9 @@ if __name__ == "__main__":
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
     agent_ids = envs.possible_agents
     offense_agent = agent_ids[0]
-    defense_agent = agent_ids[1]
+    defense_agent = agent_ids[2]
+    ai1_agent = agent_ids[1]
+    ai2_agent = agent_ids[3]
     q_network = QNetwork(envs).to(device)
     q_network.load_state_dict(torch.load(args.save_path))  # Load pre-trained model
 
@@ -202,13 +204,14 @@ if __name__ == "__main__":
                     "charts/episodic_return1": episode_reward[1],
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                     "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
+                    "charts/score_rewards_offense": score_rewards_offense,
+                    "charts/score_rewards_defense": score_rewards_defense,
+                    "charts/score_rewards_ai1": score_rewards_ai1,
+                    "charts/score_rewards_ai2": score_rewards_ai2,
+                    "charts/total_score_rewards_teamtrack": total_score_rewards_teamtrack,
+                    "charts/total_score_rewards_teamai": total_score_rewards_teamai,
+                    "charts/total_score_rewards_game": total_score_rewards_game,
                     "charts/SPS": int(global_step / (time.time() - start_time)),
-                    "charts/episodic_length": global_step - episode_length,
-                    "charts/goals_scored_offense": goals_scored_offense,
-                    "charts/goals_scored_defense": goals_scored_defense,
-                    "charts/total_goals_teamtrack": total_goals_teamtrack,
-                    "charts/total_goals_teamai": total_goals_teamai,
-                    "charts/total_goals_game": total_goals_teamtrack + total_goals_teamai,
                     "global_step": global_step
                 })
 
