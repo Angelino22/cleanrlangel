@@ -45,6 +45,9 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 1000000
     """total timesteps of the experiments"""
+    save_path: str = ""
+    """the path to the model"""
+
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
