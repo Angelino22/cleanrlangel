@@ -132,10 +132,13 @@ if __name__ == "__main__":
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    goals_scored_offense = 0  # Track goals scored by offense agent
-    goals_scored_defense = 0  # Track goals scored by defense agent
-    total_goals_teamtrack = 0
-    total_goals_teamai = 0
+    score_rewards_offense = 0  # Track score rewards by offense agent
+    score_rewards_defense = 0  # Track score rewards by defense agent
+    score_rewards_ai1 = 0  # Track score rewards by ai1 agent
+    score_rewards_ai2 = 0  # Track score rewards by ai2 agent
+    total_score_rewards_teamtrack = 0  # Score rewards by Team Track (offense + defense)
+    total_score_rewards_teamai = 0  # Score rewards by Team AI (other agents)
+    total_score_rewards_game = 0  # Total score rewards in the game
 
     for global_step in range(args.total_timesteps):
         actions = {}
@@ -158,6 +161,24 @@ if __name__ == "__main__":
             if agent in rewards:
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
+            rewards[agent] = np.clip(rewards[agent], -1, 1)
+
+        if offense_agent in rewards:
+            if rewards[offense_agent] == 1:
+                score_rewards_offense += 1
+                total_score_rewards_teamtrack += 1
+
+        if defense_agent in rewards:
+            if rewards[defense_agent] == 1:
+                score_rewards_defense += 1
+                total_score_rewards_teamtrack += 1
+
+        for agent in agent_ids:
+            if agent not in [offense_agent, defense_agent] and agent in rewards:
+                if rewards[agent] == 1:  
+                    total_score_rewards_teamai += 1
+
+        total_score_rewards_game = total_score_rewards_teamtrack + total_score_rewards_teamai
 
         obs = next_obs
 
@@ -166,8 +187,14 @@ if __name__ == "__main__":
             writer.add_scalar(f"charts/episodic_return1", episode_reward[1], global_step)
             writer.add_scalar(f"charts/adjusted_episodic_return0", adjusted_episode_reward[0], global_step)
             writer.add_scalar(f"charts/adjusted_episodic_return1", adjusted_episode_reward[1], global_step)
-            print("SPS:", int(global_step / (time.time() - start_time)))
-            writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+            writer.add_scalar(f"charts/score_rewards_offense", score_rewards_offense, global_step)
+            writer.add_scalar(f"charts/score_rewards_defense", score_rewards_defense, global_step)
+            writer.add_scalar(f"charts/score_rewards_ai1", score_rewards_ai1, global_step)
+            writer.add_scalar(f"charts/score_rewards_ai2", score_rewards_ai2, global_step)
+            writer.add_scalar(f"charts/total_score_rewards_teamtrack", total_score_rewards_teamtrack, global_step)
+            writer.add_scalar(f"charts/total_score_rewards_teamai", total_score_rewards_teamai, global_step)
+            writer.add_scalar(f"charts/total_score_rewards_game", total_score_rewards_game, global_step)
+            writer.add_scalar(f"charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
             if args.track:
                 wandb.log({
