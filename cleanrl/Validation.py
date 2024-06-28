@@ -38,8 +38,6 @@ class Args:
     """whether to upload the saved model to huggingface"""
     hf_entity: str = ""
     """the user or org name of the model repository from the Hugging Face Hub"""
-    model_path: str = "runs/your_pretrained_model.pth"
-    """the path to the pre-trained model"""
     # Algorithm specific arguments
     env_id: str = "foozpong_v3"
     """the id of the environment"""
@@ -126,7 +124,7 @@ if __name__ == "__main__":
     offense_agent = agent_ids[0]
     defense_agent = agent_ids[1]
     q_network = QNetwork(envs).to(device)
-    q_network.load_state_dict(torch.load(args.model_path))  # Load pre-trained model
+    q_network.load_state_dict(torch.load(args.save_path))  # Load pre-trained model
 
     # Initialization
     start_time = time.time()
