@@ -8,9 +8,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 import tyro
 import supersuit as ss
 from pettingzoo.atari import foozpong_v3
+from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 import wandb
 
@@ -24,7 +26,7 @@ class Args:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
-    track: bool = True
+    track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
@@ -38,13 +40,16 @@ class Args:
     """whether to upload the saved model to huggingface"""
     hf_entity: str = ""
     """the user or org name of the model repository from the Hugging Face Hub"""
+
     # Algorithm specific arguments
     env_id: str = "foozpong_v3"
     """the id of the environment"""
-    total_timesteps: int = 1000000
+    total_timesteps: int = 10000000
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
+    num_envs: int = 1
+    """the number of parallel game environments"""
     buffer_size: int = 1000000
     """the replay memory buffer size"""
     gamma: float = 0.99
@@ -65,8 +70,6 @@ class Args:
     """timestep to start learning"""
     train_frequency: int = 4
     """the frequency of training"""
-    save_path: str = ""
-    """the path to the model"""
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
@@ -114,39 +117,6 @@ def stochastic_policy(env, agent):
     else:
         return action_space.sample()
 
-class ReplayBuffer:
-    def __init__(self, buffer_size, observation_space, action_space, device):
-        self.buffer_size = buffer_size
-        self.device = device
-        self.observations = np.zeros((buffer_size, *observation_space.shape), dtype=np.uint8)
-        self.next_observations = np.zeros((buffer_size, *observation_space.shape), dtype=np.uint8)
-        self.actions = np.zeros((buffer_size, 1), dtype=np.int64)
-        self.rewards = np.zeros((buffer_size, 1), dtype=np.float32)
-        self.dones = np.zeros((buffer_size, 1), dtype=np.float32)
-        self.infos = [{} for _ in range(buffer_size)]
-        self.ptr = 0
-        self.size = 0
-
-    def add(self, obs, next_obs, action, reward, done, info):
-        self.observations[self.ptr] = obs
-        self.next_observations[self.ptr] = next_obs
-        self.actions[self.ptr] = action
-        self.rewards[self.ptr] = reward
-        self.dones[self.ptr] = done
-        self.infos[self.ptr] = info
-        self.ptr = (self.ptr + 1) % self.buffer_size
-        self.size = min(self.size + 1, self.buffer_size)
-
-    def sample(self, batch_size):
-        indices = np.random.randint(0, self.size, size=batch_size)
-        batch = dict(obs=self.observations[indices],
-                     next_obs=self.next_observations[indices],
-                     actions=self.actions[indices],
-                     rewards=self.rewards[indices],
-                     dones=self.dones[indices],
-                     infos=[self.infos[i] for i in indices])
-        return {k: torch.tensor(v, device=self.device, dtype=torch.float32) if k != 'infos' else v for k, v in batch.items()}
-
 if __name__ == "__main__":
     args = tyro.cli(Args)
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
@@ -176,11 +146,21 @@ if __name__ == "__main__":
     envs = make_env(args.env_id, args.seed, args.capture_video, run_name)()
     agent_ids = envs.possible_agents
     offense_agent = agent_ids[0]
-    defense_agent = agent_ids[2]
-    ai1_agent = agent_ids[1]
-    ai2_agent = agent_ids[3]
+    defense_agent = agent_ids[1]
     q_network = QNetwork(envs).to(device)
-    q_network.load_state_dict(torch.load(args.save_path))  # Load pre-trained model
+    target_network = QNetwork(envs).to(device)
+    optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
+    target_network.load_state_dict(q_network.state_dict())
+
+    observation_space = gym.spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)
+    rb = ReplayBuffer(
+        args.buffer_size,
+        observation_space,
+        envs.action_space(offense_agent),
+        device,
+        optimize_memory_usage=True,
+        handle_timeout_termination=False,
+    )
 
     # Initialization
     start_time = time.time()
@@ -188,33 +168,33 @@ if __name__ == "__main__":
     episode_length = 0
     episode_reward = np.zeros(len(agent_ids))
     adjusted_episode_reward = np.zeros(len(agent_ids))
-    score_rewards_offense = 0  # Track score rewards by offense agent
-    score_rewards_defense = 0  # Track score rewards by defense agent
-    score_rewards_ai1 = 0  # Track score rewards by ai1 agent
-    score_rewards_ai2 = 0  # Track score rewards by ai2 agent
-    total_score_rewards_teamtrack = 0  # Score rewards by Team Track (offense + defense)
-    total_score_rewards_teamai = 0  # Score rewards by Team AI (other agents)
-    total_score_rewards_game = 0  # Total score rewards in the game
-    error_count = 0  # Track error count
-
-    game_score = {offense_agent: 0, defense_agent: 0, ai1_agent: 0, ai2_agent: 0}
-    team_track_score = 0
-    team_ai_score = 0
+    goals_scored_offense = 0  # Track goals scored by offense agent
+    goals_scored_defense = 0  # Track goals scored by defense agent
+    total_goals_teamtrack = 0
+    total_goals_teamai = 0
 
     for global_step in range(args.total_timesteps):
         actions = {}
         for agent in agent_ids:
             if agent == offense_agent and agent in obs:
-                obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
-                q_values = q_network(obs_tensor)
-                actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
+                epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+                if random.random() < epsilon:
+                    actions[agent] = envs.action_space(agent).sample()
+                else:
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    q_values = q_network(obs_tensor)
+                    actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
             elif agent == defense_agent and agent in obs:
                 actions[agent] = stochastic_policy(envs, agent)
             elif agent in obs:
                 # For enemy DQN agents
-                obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
-                q_values = q_network(obs_tensor)
-                actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
+                epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+                if random.random() < epsilon:
+                    actions[agent] = envs.action_space(agent).sample()
+                else:
+                    obs_tensor = torch.tensor(obs[agent][:, :, :4], dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+                    q_values = q_network(obs_tensor)
+                    actions[agent] = torch.argmax(q_values, dim=1).cpu().numpy()[0]
 
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
@@ -222,80 +202,116 @@ if __name__ == "__main__":
             if agent in rewards:
                 episode_reward[agent_ids.index(agent)] += rewards[agent]
                 adjusted_episode_reward[agent_ids.index(agent)] += rewards[agent]
-            rewards[agent] = np.clip(rewards[agent], -1, 1)
 
-        # Explicitly track scores based on rewards
-        if offense_agent in rewards and rewards[offense_agent] == 1:
-            score_rewards_offense += 1
-            total_score_rewards_teamtrack += 1
-            game_score[offense_agent] += 1
+        if offense_agent in rewards:
+            real_next_obs = next_obs[offense_agent].copy()
+            if truncations[offense_agent]:
+                real_next_obs = infos[offense_agent].get("final_observation", real_next_obs)
+            rb.add(
+                np.array(obs[offense_agent][:, :, :4]).transpose(2, 0, 1),
+                np.array(real_next_obs[:, :, :4]).transpose(2, 0, 1),
+                np.array([actions[offense_agent]]),
+                np.array([rewards[offense_agent]]),
+                np.array([terminations[offense_agent]]),
+                infos.get(offense_agent, {})
+            )
+            if rewards[offense_agent] == 1:
+                goals_scored_offense += 1
+                total_goals_teamtrack += 1
 
-        if defense_agent in rewards and rewards[defense_agent] == 1:
-            score_rewards_defense += 1
-            total_score_rewards_teamtrack += 1
-            game_score[defense_agent] += 1
+        if defense_agent in rewards:
+            if rewards[defense_agent] == 1:
+                goals_scored_defense += 1
+                total_goals_teamtrack += 1
 
         for agent in agent_ids:
-            if agent not in [offense_agent, defense_agent] and agent in rewards and rewards[agent] == 1:
-                total_score_rewards_teamai += 1
-                game_score[agent] += 1
-
-        total_score_rewards_game = total_score_rewards_teamtrack + total_score_rewards_teamai
-
-        # Check if the total goals reached 25
-        if total_score_rewards_game >= 25:
-            if total_score_rewards_teamtrack > total_score_rewards_teamai:
-                team_track_score += 1
-            else:
-                team_ai_score += 1
-            total_score_rewards_teamtrack = 0
-            total_score_rewards_teamai = 0
-            total_score_rewards_game = 0
-            obs, _ = envs.reset(seed=args.seed)
+            if agent not in [offense_agent, defense_agent] and agent in rewards:
+                if rewards[agent] == 1:  
+                    total_goals_teamai += 1
 
         obs = next_obs
 
-        if global_step % 100 == 0:
-            writer.add_scalar(f"charts/episodic_return0", episode_reward[0], global_step)
-            writer.add_scalar(f"charts/episodic_return1", episode_reward[1], global_step)
-            writer.add_scalar(f"charts/adjusted_episodic_return0", adjusted_episode_reward[0], global_step)
-            writer.add_scalar(f"charts/adjusted_episodic_return1", adjusted_episode_reward[1], global_step)
-            writer.add_scalar(f"charts/score_rewards_offense", score_rewards_offense, global_step)
-            writer.add_scalar(f"charts/score_rewards_defense", score_rewards_defense, global_step)
-            writer.add_scalar(f"charts/score_rewards_ai1", score_rewards_ai1, global_step)
-            writer.add_scalar(f"charts/score_rewards_ai2", score_rewards_ai2, global_step)
-            writer.add_scalar(f"charts/total_score_rewards_teamtrack", total_score_rewards_teamtrack, global_step)
-            writer.add_scalar(f"charts/total_score_rewards_teamai", total_score_rewards_teamai, global_step)
-            writer.add_scalar(f"charts/total_score_rewards_game", total_score_rewards_game, global_step)
-            writer.add_scalar(f"charts/team_track_score", team_track_score, global_step)
-            writer.add_scalar(f"charts/team_ai_score", team_ai_score, global_step)
-            writer.add_scalar(f"charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+        if global_step > args.learning_starts:
+            if global_step % args.train_frequency == 0:
+                if rb.size() >= args.batch_size:
+                    data = rb.sample(args.batch_size)
+                    with torch.no_grad():
+                        next_obs_tensor = torch.tensor(data.next_observations, dtype=torch.float32).to(device)
+                        target_max, _ = target_network(next_obs_tensor.permute((0, 1, 2, 3))).max(dim=1)
+                        td_target = data.rewards.flatten() + args.gamma * target_max * (1 - data.dones.flatten())
+                    obs_tensor = torch.tensor(data.observations, dtype=torch.float32).to(device)
+                    old_val = q_network(obs_tensor.permute((0, 1, 2, 3))).gather(1, data.actions).squeeze()
+                    loss = F.mse_loss(td_target, old_val)
 
+                    if global_step % 100 == 0:
+                        writer.add_scalar(f"losses/td_loss_{offense_agent}", loss, global_step)
+                        writer.add_scalar(f"losses/q_values_{offense_agent}", old_val.mean().item(), global_step)
+                        print("SPS:", int(global_step / (time.time() - start_time)))
+                        writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+
+                        if args.track:
+                            wandb.log({
+                                f"losses/td_loss_{offense_agent}": loss.item(),
+                                f"losses/q_values_{offense_agent}": old_val.mean().item(),
+                                "charts/SPS": int(global_step / (time.time() - start_time)),
+                                "charts/episodic_return0": episode_reward[0],
+                                "charts/episodic_return1": episode_reward[1],
+                                "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
+                                "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
+                                "charts/episodic_length": global_step - episode_length,
+                                "charts/goals_scored_offense": goals_scored_offense,
+                                "charts/goals_scored_defense": goals_scored_defense,
+                                "charts/total_goals_teamtrack": total_goals_teamtrack,
+                                "charts/total_goals_teamai": total_goals_teamai,
+                                "charts/learning_rate": args.learning_rate,
+                                "charts/min_epsilon": args.end_e,
+                                "charts/epsilon_decay": args.exploration_fraction,
+                                "global_step": global_step
+                            })
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+        if global_step % args.target_network_frequency == 0:
+            for target_network_param, q_network_param in zip(target_network.parameters(), q_network.parameters()):
+                target_network_param.data.copy_(
+                    args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
+                )
+
+        if infos:
             if args.track:
                 wandb.log({
                     "charts/episodic_return0": episode_reward[0],
                     "charts/episodic_return1": episode_reward[1],
                     "charts/adjusted_episodic_return0": adjusted_episode_reward[0],
                     "charts/adjusted_episodic_return1": adjusted_episode_reward[1],
-                    "charts/score_rewards_offense": score_rewards_offense,
-                    "charts/score_rewards_defense": score_rewards_defense,
-                    "charts/score_rewards_ai1": score_rewards_ai1,
-                    "charts/score_rewards_ai2": score_rewards_ai2,
-                    "charts/total_score_rewards_teamtrack": total_score_rewards_teamtrack,
-                    "charts/total_score_rewards_teamai": total_score_rewards_teamai,
-                    "charts/total_score_rewards_game": total_score_rewards_game,
-                    "charts/team_track_score": team_track_score,
-                    "charts/team_ai_score": team_ai_score,
-                    "charts/SPS": int(global_step / (time.time() - start_time)),
+                    "charts/episodic_length": global_step - episode_length,
+                    "charts/goals_scored_offense": goals_scored_offense,
+                    "charts/goals_scored_defense": goals_scored_defense,
+                    "charts/total_goals_teamtrack": total_goals_teamtrack,
+                    "charts/total_goals_teamai": total_goals_teamai,
+                    "charts/learning_rate": args.learning_rate,
+                    "charts/min_epsilon": args.end_e,
+                    "charts/epsilon_decay": args.exploration_fraction,
                     "global_step": global_step
                 })
-
-        if infos:
             episode_length = global_step
             episode_reward = np.zeros(len(agent_ids))
             adjusted_episode_reward = np.zeros(len(agent_ids))
 
         obs = next_obs
+
+    if args.save_model:
+        model_path = f"runs/{run_name}/{args.exp_name}_{offense_agent}.cleanrl_model"
+        torch.save(q_network.state_dict(), model_path)
+        print(f"model saved to {model_path}")
+
+        if args.upload_model:
+            from cleanrl_utils.huggingface import push_to_hub
+            repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}"
+            repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
+            push_to_hub(args, episodic_returns, repo_id, "DQN", f"runs/{run_name}", f"videos/{run_name}-eval")
 
     envs.close()
     writer.close()
