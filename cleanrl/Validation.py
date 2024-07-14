@@ -70,6 +70,7 @@ class Args:
     """timestep to start learning"""
     train_frequency: int = 4
     """the frequency of training"""
+    save_path: str = "models/q_network.pth"
 
 def make_env(env_id, seed, capture_video, run_name):
     def thunk():
